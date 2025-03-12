@@ -70,12 +70,22 @@ function App() {
     if (!frameNode) {
       const layer = stage.children[0];
       if (layer && selectNode.parent !== layer) {
+        const pos = selectNode.getAbsolutePosition();
+        const localPos = layer.getAbsoluteTransform().copy().invert().point(pos);
+        selectNode.setPosition(localPos);
         selectNode.moveTo(layer);
       }
       return;
     }
 
     if (selectNode.parent !== frameNode) {
+      const pos = selectNode.getAbsolutePosition();
+      const localPos = frameNode
+        .getAbsoluteTransform()
+        .copy()
+        .invert()
+        .point(pos);
+      selectNode.setPosition(localPos);
       selectNode.moveTo(frameNode);
     }
   };
