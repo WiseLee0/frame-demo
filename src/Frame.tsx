@@ -9,27 +9,24 @@ const Frame: React.FC<GroupConfig & RectConfig> = (props) => {
   const frameRef = useRef<Konva.Rect>(null);
 
   return (
-    <Group
-      draggable
-      clipX={x}
-      clipY={y}
-      clipWidth={width}
-      clipHeight={height}
-      name={"Frame"}
-    >
-      <Rect
-        ref={frameRef}
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        fill={fill}
-        stroke={stroke}
-        id={props.id}
-        type={"Frame"}
-      />
-      <Group x={x} y={y}>
-        {children}
+    <Group x={x} y={y} draggable>
+      <Group
+        clipX={0}
+        clipY={0}
+        clipWidth={width}
+        clipHeight={height}
+        name={"Frame"}
+      >
+        <Rect
+          ref={frameRef}
+          width={width}
+          height={height}
+          fill={fill}
+          stroke={stroke}
+          id={props.id}
+          type={"Frame"}
+        />
+        <Group>{children}</Group>
       </Group>
     </Group>
   );

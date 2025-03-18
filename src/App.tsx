@@ -1,130 +1,44 @@
 import { Layer, Rect, Stage } from "react-konva";
 import "./App.css";
 import Frame from "./Frame";
-import { DataStore, GlobalStore } from "./store";
+import { DataStore } from "./store";
 import Konva from "konva";
-import { useEffect, useRef } from "react";
-import { Group } from "konva/lib/Group";
+import { useCallback, useEffect, useRef } from "react";
 import { RectConfig } from "konva/lib/shapes/Rect";
-import { Shape } from "konva/lib/Shape";
+import TransformBox, { setTransformState } from "./TransformBox";
+import { Transform } from "konva/lib/Util";
 
 function App() {
-  const stageRef = useRef<Konva.Stage>(null);
-
-  const handlePointDown = () => {
-    const stage = stageRef.current;
-    const pointerPosition = stage?.getPointerPosition();
-    // 记录选择元素
-    if (pointerPosition && stage) {
-      const node = stage.getIntersection(pointerPosition);
-      GlobalStore.selectNode = node;
-    }
-  };
-
-  // 选择元素是否为Frame
-  const selectNodeIsFrame = () => {
-    const { selectNode } = GlobalStore;
-    return selectNode?.parent?.attrs?.name === "Frame";
-  };
-
-  // 获取移入的FrameNode
-  const getIntersectionFrame = () => {
-    const { selectNode } = GlobalStore;
-    const stage = stageRef.current;
-    if (!selectNode || !stage) return;
-    const frames = stage.find(".Frame") as Group[];
-    let maxDepth = -1;
-    let frameNode: Group | null = null;
-    const pointerPosition = stage?.getPointerPosition();
-
-    frames.map((frame) => {
-      const frameRect = frame.children[0] as Shape;
-      const frameChildren = frame.children[1] as Group;
-      // 排除当前选择的Frame
-      if (frameRect.id() === selectNode.id()) {
-        return;
-      }
-
-      // 相交情况下，选择层级最高的Frame
-      const zIndex = frameRect.getAbsoluteZIndex();
-      if (zIndex >= maxDepth && frameRect.intersects(pointerPosition)) {
-        maxDepth = zIndex;
-        frameNode = frameChildren!;
-      }
-    });
-    return frameNode as unknown as Group;
-  };
-
-  // 处理移动画板逻辑
-  const handleMoveFrame = () => {
-    let selectNode = GlobalStore.selectNode;
-    const stage = stageRef.current;
-    if (!selectNode || !stage) return;
-    const frameNode = getIntersectionFrame();
-
-    if (selectNodeIsFrame()) {
-      selectNode = selectNode.parent as unknown as Shape;
-    }
-
-    // 移出画板则拖拽到最高层级
-    if (!frameNode) {
-      const layer = stage.children[0];
-      if (layer && selectNode.parent !== layer) {
-        const pos = selectNode.getAbsolutePosition();
-        const localPos = layer.getAbsoluteTransform().copy().invert().point(pos);
-        selectNode.setPosition(localPos);
-        selectNode.moveTo(layer);
-      }
-      return;
-    }
-
-    if (selectNode.parent !== frameNode) {
-      const pos = selectNode.getAbsolutePosition();
-      const localPos = frameNode
-        .getAbsoluteTransform()
-        .copy()
-        .invert()
-        .point(pos);
-      selectNode.setPosition(localPos);
-      selectNode.moveTo(frameNode);
-    }
-  };
-
-  const handlePointMove = () => {
-    handleMoveFrame();
-  };
-
-  const handlePointUp = () => {
-    GlobalStore.selectNode = null;
-  };
-
-  useEffect(() => {
-    window.addEventListener("pointerdown", handlePointDown);
-    window.addEventListener("pointermove", handlePointMove);
-    window.addEventListener("pointerup", handlePointUp);
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointDown);
-      window.removeEventListener("pointermove", handlePointMove);
-      window.removeEventListener("pointerup", handlePointUp);
-    };
-  }, []);
-
-  return (
-    <div>
-      <Stage
-        width={window.innerWidth}
-        height={window.innerHeight}
-        ref={stageRef}
-      >
-        <DrawElement />
-      </Stage>
-    </div>
-  );
+  return <DrawElement />;
 }
 
 const DrawElement = () => {
-  const render = (nodes: RectConfig[]) => {
+  const stageRef = useRef<Konva.Stage>(null);
+  const selectNodeRef = useRef<any>(null);
+  const setNode = (node: any) => {
+    setTransformState({ node });
+  };
+  const transformNodeData = () => {
+    const rect = selectNodeRef.current;
+    if (!rect) return null;
+    const matrix = rect?.getAbsoluteTransform(rect.getStage())?.m;
+    if (!matrix) return null;
+    
+    return {
+      width: rect.width(),
+      height: rect.height(),
+      transform: {
+        m00: matrix[0],
+        m01: matrix[1],
+        m02: matrix[4],
+        m10: matrix[2],
+        m11: matrix[3],
+        m12: matrix[5],
+      },
+    };
+  };
+
+  const render = useCallback((nodes: RectConfig[]) => {
     return nodes.map((node) => {
       if (node.type === "rect") {
         return <Rect key={node.id} {...node} />;
@@ -137,9 +51,114 @@ const DrawElement = () => {
         );
       }
     });
+  }, []);
+
+  useEffect(() => {
+    setNode(transformNodeData());
+  }, []);
+
+  const setSelectNodeRef = (node: any) => {
+    if (node?.nodeType === "Group") {
+      if (node?.children?.[0]?.attrs?.name !== "Frame") {
+        selectNodeRef.current = null;
+        return;
+      }
+      selectNodeRef.current = node?.children?.[0]?.children?.[0];
+      return;
+    }
+    selectNodeRef.current = node;
+  };
+  const setSelectNode = (e: any) => {
+    if (e.target?.attrs?.id?.includes?.("__transform")) {
+      return;
+    }
+    setSelectNodeRef(e.target);
+    if (e.target.nodeType === "Stage") {
+      setNode(null);
+      return;
+    }
+    setNode(transformNodeData());
   };
 
-  return <Layer>{render(DataStore.data)}</Layer>;
+  return (
+    <Stage
+      width={window.innerWidth}
+      height={window.innerHeight}
+      ref={stageRef}
+      onClick={(e) => {
+        setSelectNode(e);
+      }}
+      onDragStart={(e) => {
+        if (e.target?.attrs?.id?.includes("__transform")) {
+          return;
+        }
+        setNode(null);
+      }}
+      onDragEnd={(e) => {
+        setSelectNode(e);
+      }}
+    >
+      <Layer>
+        {render(DataStore.data)}
+        <TransformBox
+          onChangeNode={(node) => {
+            const rect = selectNodeRef.current as any;
+            if (!rect) return;
+            if (rect.attrs.type === "Frame") {
+              const frame = rect.parent;
+              const frameGroup = frame.parent;
+              rect?.setSize({
+                width: node.width,
+                height: node.height,
+              });
+              frame.setClip({
+                width: node.width,
+                height: node.height,
+              });
+              const { m00, m01, m02, m10, m11, m12 } = node.transform;
+              const tr = new Transform([m00, m01, m10, m11, m02, m12]);
+              const attrs = tr.decompose();
+              frameGroup?.setX(attrs.x);
+              frameGroup?.setY(attrs.y);
+              // frameGroup.clearCache();
+              // frame.clearCache();
+              // rect.clearCache();
+              if (node.filpX !== undefined) {
+                node.filpX ? frameGroup?.scaleX(-1) : frameGroup?.scaleX(1);
+              }
+              if (node.filpY !== undefined) {
+                node.filpY ? frameGroup?.scaleY(-1) : frameGroup?.scaleY(1);
+              }
+              setNode(transformNodeData());
+              return;
+            }
+            rect?.setSize({
+              width: node.width,
+              height: node.height,
+            });
+            const { m00, m01, m02, m10, m11, m12 } = node.transform;
+            const tr = new Transform([m00, m01, m10, m11, m02, m12]);
+            const attrs = tr.decompose();
+            const rectPos = rect.parent
+              .getAbsoluteTransform()
+              .copy()
+              .invert()
+              .point({ x: attrs.x, y: attrs.y });
+
+            rect?.setX(rectPos.x);
+            rect?.setY(rectPos.y);
+            if (node.filpX !== undefined) {
+              node.filpX ? rect?.scaleX(-1) : rect?.scaleX(1);
+            }
+            if (node.filpY !== undefined) {
+              node.filpY ? rect?.scaleY(-1) : rect?.scaleY(1);
+            }
+            setNode(transformNodeData());
+          }}
+        />
+      </Layer>
+    </Stage>
+  );
 };
 
 export default App;
