@@ -1,3 +1,18 @@
 body {
-  background-color: #fff;
+  background-color: #f5f5f5;
+  overflow: hidden;
+  height: 100%;
+  touch-action: none; /* 禁止触摸操作 */
+}
+.top-left-rotation {
+  cursor: url(./assets/top-left.svg) 8 8, auto;
+}
+.top-right-rotation {
+  cursor: url(./assets/top-right.svg) 8 8, auto;
+}
+.bottom-left-rotation {
+  cursor: url(./assets/bottom-left.svg) 8 8, auto;
+}
+.bottom-right-rotation {
+  cursor: url(./assets/bottom-right.svg) 8 8, auto;
 }

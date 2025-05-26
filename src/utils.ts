@@ -1,87 +1,5 @@
-export function isPointInRect(
-  px: number,
-  py: number,
-  x: number,
-  y: number,
-  w: number,
-  h: number
-): boolean {
-  return px >= x && px <= x + w && py >= y && py <= y + h;
-}
-export function deleteNodeById(nodes: any[], id: string) {
-  return nodes.filter((item) => {
-    if (item.id === id) {
-      return false;
-    }
-    if (item.children) {
-      item.children = deleteNodeById(item.children, id);
-    }
-    return true;
-  });
-}
-export function addChildById(nodes: any[], id: string, node: any) {
-  return nodes.filter((item) => {
-    if (item.id === id) {
-      item.children = [...item.children, node];
-    }
-    if (item.children && item.id !== id) {
-      item.children = addChildById(item.children, id, node);
-    }
-    return true;
-  });
-}
-
-type TransformMatrix = {
-  m00: number;
-  m01: number;
-  m02: number;
-  m10: number;
-  m11: number;
-  m12: number;
-};
-export function extractRotationAngle(transform: TransformMatrix): number {
-  // 提取 cosθ 和 sinθ
-  const cosθ = transform.m00;
-  const sinθ = transform.m10;
-
-  // 计算弧度
-  const θ_rad = Math.atan2(sinθ, cosθ);
-
-  // 转换为角度并返回
-  return θ_rad * (180 / Math.PI);
-}
-type KonvaCenterTransform = {
-  x: number;
-  y: number;
-  offset: {
-    x: number;
-    y: number;
-  };
-  rotation: number;
-};
-export function convertToCenterRotation(
-  originalX: number,
-  originalY: number,
-  width: number,
-  height: number,
-  rotation: number
-): KonvaCenterTransform {
-  const offsetX = width / 2;
-  const offsetY = height / 2;
-  const centerX = originalX + offsetX;
-  const centerY = originalY + offsetY;
-  return {
-    x: centerX,
-    y: centerY,
-    offset: {
-      x: offsetX,
-      y: offsetY,
-    },
-    rotation: rotation,
-  };
-}
-
 import { type UseBoundStore, StoreApi } from 'zustand';
+import { getProjectState } from './projectState';
 
 export function createStoreUtils<T>(originStore: UseBoundStore<StoreApi<T>>) {
   type State = keyof T;
@@ -145,3 +63,8 @@ export function createStoreUtils<T>(originStore: UseBoundStore<StoreApi<T>>) {
     setState,
   };
 }
+
+
+export const getElementById = (id: string) => {
+  return getProjectState('elements').find((element) => element.id === id);
+};
