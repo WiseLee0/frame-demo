@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { getProjectState, setProjectState } from "../projectState"
 import { getSharedStage } from "../App"
-import { getSelectionBoxState, getTransform, hitTestRectNodes, isPointInRect } from "../selection-box"
+import { getSelectionBoxState, getTransform, hitTestRectNodes, isPointInRect, setSelectionBoxState } from "../selection-box"
 import { getHoverSelectionRectState, setHoverSelectionRectState } from "."
 import { getGhostSelectionRectState } from "../ghost-selection-rect"
 import { getCursor } from "../cursor"
@@ -10,11 +10,12 @@ export const useHoverSelectionRectEvent = () => {
         const stage = getSharedStage()
         const handleMouseDown = () => {
             const node = getHoverSelectionRectState('node')
-            if (!node) {
+            const hotId = getHoverSelectionRectState('hotId')
+            if (!node && !hotId) {
                 setProjectState({ selection: [] })
                 return;
             }
-            if (!getProjectState('selection').includes(node.id)) {
+            if (node && !getProjectState('selection').includes(node.id)) {
                 setProjectState({ selection: [node.id] })
             }
         }
@@ -22,7 +23,8 @@ export const useHoverSelectionRectEvent = () => {
             const pos = stage.getRelativePointerPosition()
             const ghostNode = getGhostSelectionRectState('node')
             const scale = getProjectState('scale')
-            if (!pos || ghostNode) {
+            const isDragging = getSelectionBoxState('isDragging')
+            if (!pos || ghostNode || isDragging) {
                 setHoverSelectionRectState({ node: null })
                 return
             }
@@ -74,6 +76,7 @@ export const useHoverSelectionRectEvent = () => {
                 for (const anchor of anchorRects) {
                     if (isPointInRect(boxPos, anchor)) {                        
                         stage.content.style.cursor = getCursor(anchor.cursor as any, box.rotation)
+                        setHoverSelectionRectState({ hotId: anchor.id })
                         return true
                     }
                 }
@@ -90,6 +93,7 @@ export const useHoverSelectionRectEvent = () => {
                 for (const rotationAnchor of rotationRects) {
                     if (isPointInRect(boxPos, rotationAnchor)) {
                         stage.content.style.cursor = getCursor(rotationAnchor.cursor as any, box.rotation)
+                        setHoverSelectionRectState({ hotId: rotationAnchor.id })
                         return true
                     }
                 }
@@ -105,6 +109,7 @@ export const useHoverSelectionRectEvent = () => {
                 for (const borderAnchor of borderRects) {
                     if (isPointInRect(boxPos, borderAnchor)) {
                         stage.content.style.cursor = getCursor(borderAnchor.cursor as any,  box.rotation)
+                        setHoverSelectionRectState({ hotId: borderAnchor.id })
                         return true
                     }
                 }
@@ -112,9 +117,13 @@ export const useHoverSelectionRectEvent = () => {
                 return false
             }
             for (const box of boxs) {
-                if (hoverBox(box)) return true
+                if (hoverBox(box)) {
+                    setSelectionBoxState({ dragNodeId: box.id })
+                    return true
+                }
             }
-
+            setSelectionBoxState({ dragNodeId: '' })
+            setHoverSelectionRectState({ hotId: '' })
             stage.content.style.cursor = ''
             return false
         }

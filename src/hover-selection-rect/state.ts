@@ -12,11 +12,11 @@ interface HoverNode {
 
 interface HoverSelectionRectState {
     node: HoverNode | null;       // 渲染框数据
-    hoverId: string;              // 当前热区id
+    hotId: string;              // 当前热区id
 }
 export const _hoverSelectionRectState = createWithEqualityFn<HoverSelectionRectState>()(() => ({
     node: null,
-    hoverId: '',
+    hotId: '',
 }));
 
 export const {

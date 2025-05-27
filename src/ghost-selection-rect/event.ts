@@ -3,6 +3,7 @@ import { getSharedStage } from "../App";
 import { getGhostSelectionRectState, setGhostSelectionRectState } from ".";
 import { getProjectState, setProjectState } from "../projectState";
 import { hitTestRectNodes } from "../selection-box";
+import { getHoverSelectionRectState } from "../hover-selection-rect";
 interface GhostNode {
     x: number;
     y: number;
@@ -24,7 +25,9 @@ export const useGhostSelectionRectEvent = () => {
             mouseRef.current.isDown = true
             mouseRef.current.isEnoughMove = false
             const pos = stage.getRelativePointerPosition();
-            if (!pos) {
+            const hotId = getHoverSelectionRectState('hotId')
+            const hoverNode = getHoverSelectionRectState('node')
+            if (!pos || hotId || hoverNode) {
                 mouseRef.current.isDown = false
                 return
             }

@@ -65,6 +65,24 @@ export function createStoreUtils<T>(originStore: UseBoundStore<StoreApi<T>>) {
 }
 
 
-export const getElementById = (id: string) => {
-  return getProjectState('elements').find((element) => element.id === id);
+export const getElementById = (id: string, elements?: any[]) => {
+  if (!elements || !elements.length) {
+    elements = getProjectState('elements');
+  }
+  const findElement = (elements: any) => {
+    for (const element of elements) {
+      if (element.id === id) {
+        return element;
+      }
+      if (element?.elements?.length) {
+        const ele = findElement(element?.elements) as any;
+        if (ele) {
+          return ele;
+        }
+      }
+    }
+    return null;
+  };
+
+  return findElement(elements);
 };

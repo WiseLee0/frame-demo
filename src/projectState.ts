@@ -31,7 +31,7 @@ export const _projectState = createWithEqualityFn<ProjectState>()(() => ({
     offsetY: offsetY - 1000,
     elements: mockElements,
     selection: [],
-    cursor: ''
+    cursor: '',
 }));
 
 export const {
