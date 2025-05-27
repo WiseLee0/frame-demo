@@ -146,6 +146,27 @@ export const useGhostSelectionRectEvent = () => {
             const selection = []
             for (const element of elements) {
                 const renderNode = transformRenderNode(element)
+                // Frame元素，有特殊逻辑
+                if (element.type === 'frame') {
+                    if (isRectContained(getGhostNodeInfo(ghostNode), renderNode)) {
+                        selection.push(element.id)
+                        continue
+                    }
+                    if (hitTestRectNodes(getGhostNodeInfo(ghostNode), renderNode)) {
+                        if (element.elements?.length) {
+                            for (const child of element.elements) {
+                                const childRenderNode = transformRenderNode(child)
+                                const cx = childRenderNode.x + renderNode.x
+                                const cy = childRenderNode.y + renderNode.y
+                                if (hitTestRectNodes(getGhostNodeInfo(ghostNode), { ...childRenderNode, x: cx, y: cy })) {
+                                    selection.push(child.id)
+                                }
+                            }
+                        }
+                    }
+                    continue
+                }
+                // 其他元素
                 if (hitTestRectNodes(getGhostNodeInfo(ghostNode), renderNode)) {
                     selection.push(element.id)
                 }
@@ -180,4 +201,25 @@ const getGhostNodeInfo = (node: GhostNode) => {
         height = -height
     }
     return { x, y, width, height, rotation: 0 }
+}
+
+function isRectContained(container: any, target: any): boolean {
+    // 计算矩形边界
+    const containerLeft = container.x;
+    const containerRight = container.x + container.width;
+    const containerTop = container.y;
+    const containerBottom = container.y + container.height;
+
+    const targetLeft = target.x;
+    const targetRight = target.x + target.width;
+    const targetTop = target.y;
+    const targetBottom = target.y + target.height;
+
+    // 检查所有边界点是否在容器内
+    return (
+        targetLeft >= containerLeft &&
+        targetRight <= containerRight &&
+        targetTop >= containerTop &&
+        targetBottom <= containerBottom
+    );
 }

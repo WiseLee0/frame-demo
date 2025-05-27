@@ -13,6 +13,7 @@ interface Node {
   scaleX: number;
   scaleY: number;
   selection: string[];
+  frames: any;
 }
 
 interface SelectionBoxState {

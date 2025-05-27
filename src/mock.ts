@@ -61,8 +61,8 @@ export const mockElements = [
             {
                 "id": "element-shape_square-mb0gkcjg",
                 "type": "shape_square",
-                "x": 445.25579247525184,
-                "y": 394.05774906678084,
+                "x": 464.7611969348318,
+                "y": 394.0577490667804,
                 "status": "success",
                 "width": 1024,
                 "height": 1024,
@@ -75,9 +75,27 @@ export const mockElements = [
                     "width": 1024,
                     "height": 1024
                 }
+            },
+            {
+                "id": "element-shape_square-mb6ll8rs",
+                "type": "shape_square",
+                "x": 1717.6142796708855,
+                "y": 1139.2313381803438,
+                "status": "success",
+                "width": 1023.9999999999845,
+                "height": 1023.9999999999873,
+                "scaleX": 1,
+                "scaleY": 1,
+                "rotation": 44.85471252842309,
+                "data": {
+                    "shape": "square",
+                    "backgroundColor": "rgba(160, 173, 250, 1)",
+                    "width": 1024,
+                    "height": 1024
+                }
             }
         ],
-        "unitId": "unit-frame-mb0gjzhd"
+        "unitId": "unit-frame-mb6ll5a2"
     },
     {
         "id": "element-shape_square-mb37a2mt",

@@ -25,5 +25,5 @@ export function flattenNestedArrays<T>(input: (T | T[])[]): T[][] {
     }
 
     extractArrays(input);
-    return result;
+    return result.filter(item => item.length);
 }

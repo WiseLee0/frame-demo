@@ -20,6 +20,7 @@ export const useSelectionBoxEvent = () => {
         isEnoughMove: false,
         hotId: '',
         oldBoxNode: {} as any,
+        oldBoxNodes: [] as any[],
         elements: [] as any[],
         oldElements: [] as any[]
     })
@@ -55,9 +56,11 @@ export const useSelectionBoxEvent = () => {
             const moveThreshold = 2 / scale
             if (!mouseRef.current.isEnoughMove && (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold)) {
                 const dragNodeId = getSelectionBoxState('dragNodeId')
-                const oldBoxNode = getSelectionBoxState('nodes').find(node => node.id === dragNodeId);
+                const boxs = getSelectionBoxState('nodes')
+                const oldBoxNode = boxs.find(node => node.id === dragNodeId);
                 if (oldBoxNode) {
                     mouseRef.current.oldBoxNode = _.cloneDeep(oldBoxNode)
+                    mouseRef.current.oldBoxNodes = _.cloneDeep(boxs)
                     mouseRef.current.elements = getProjectState('selection').map(id => getElementById(id))
                     mouseRef.current.oldElements = _.cloneDeep(mouseRef.current.elements)
                 }
@@ -418,13 +421,27 @@ export const useSelectionBoxEvent = () => {
             finalOffsetX = actualWidthChange;
         }
 
+
         for (const element of mouseRef.current.elements) {
             const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
-            element.x = (oldElement.x - oldBoxNode.x) * finalDeltaX + oldBoxNode.x + finalOffsetX
-            element.y = (oldElement.y - oldBoxNode.y) * finalDeltaY + oldBoxNode.y + finalOffsetY
-            element.width = oldElement.width * finalDeltaX
-            element.height = oldElement.height * finalDeltaY
-
+            const currentBox = mouseRef.current.oldBoxNodes.find((item: any) => item.selection.includes(oldElement.id))
+            if (!currentBox) continue;
+            if (currentBox.frames[oldElement.id]) {
+                const parentFrame = getElementById(currentBox.frames[oldElement.id])
+                const bx = currentBox.x - parentFrame.x
+                const by = currentBox.y - parentFrame.y
+                element.x = (oldElement.x - bx) * finalDeltaX + bx + finalOffsetX
+                element.y = (oldElement.y - by) * finalDeltaY + by + finalOffsetY
+                element.width = oldElement.width * finalDeltaX
+                element.height = oldElement.height * finalDeltaY
+                continue;
+            }
+            if (currentBox) {
+                element.x = (oldElement.x - currentBox.x) * finalDeltaX + currentBox.x + finalOffsetX
+                element.y = (oldElement.y - currentBox.y) * finalDeltaY + currentBox.y + finalOffsetY
+                element.width = oldElement.width * finalDeltaX
+                element.height = oldElement.height * finalDeltaY
+            }
         }
         changeSelectionRender()
     }
@@ -595,6 +612,13 @@ const getSelectionNodes = (selection: string[], elements: any[]) => {
         if (element?.elements) {
             const nodes = getSelectionNodes(selection, element.elements) as any[];
             if (nodes.length) {
+                if (element.type === 'frame') {
+                    nodes.forEach(item => {
+                        item.x = item.x + element.x
+                        item.y = item.y + element.y
+                        item.__parentFrameId = element.id
+                    })
+                }
                 node.push(nodes)
             }
         }
@@ -602,24 +626,18 @@ const getSelectionNodes = (selection: string[], elements: any[]) => {
     return node
 }
 
-const transformSelectionNodes = (nodesArr: any[][]) => {
-    const result = []
-    for (const nodes of nodesArr) {
-        const temp = []
-        for (const node of nodes) {
-            temp.push(transformRenderNode(node))
-        }
-        result.push(temp)
-    }
-    return result
-}
-
 const mergeToBoxs = (nodesArr: any[][]) => {
     // 如果只有一个元素被选中，则不合并
     if (nodesArr.length === 1 && nodesArr[0].length === 1) {
         const node = nodesArr[0][0]
+        const frames = {} as any
+        if (node.__parentFrameId) {
+            frames[node.id] = node.__parentFrameId
+        }
         return [{
+            id: 'box-0',
             selection: [node.id],
+            frames,
             x: node.x,
             y: node.y,
             width: node.width,
@@ -631,9 +649,13 @@ const mergeToBoxs = (nodesArr: any[][]) => {
     const newNodes = []
     for (const nodes of nodesArr) {
         const selection = []
+        const frames = {} as any
         const points: { x: number, y: number }[] = []
         for (const node of nodes) {
             selection.push(node.id)
+            if (node.__parentFrameId) {
+                frames[node.id] = node.__parentFrameId
+            }
             if (node.rotation === 0) {
                 points.push({ x: node.x, y: node.y })
                 points.push({ x: node.x + node.width, y: node.y })
@@ -645,7 +667,9 @@ const mergeToBoxs = (nodesArr: any[][]) => {
         }
         const box = getPointsBoundingBox(points)
         newNodes.push({
+            id: `box-${newNodes.length}`,
             selection,
+            frames,
             x: box[0],
             y: box[1],
             width: box[2],
