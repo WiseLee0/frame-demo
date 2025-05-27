@@ -29,12 +29,12 @@ export function SelectionBoxRects() {
                         strokeWidth={1 / scale}
                         listening={false}
                     />
-                    {nodeAnchor(node).map(anchor => {
+                    {nodeAnchor(node).map((anchor, idx) => {
                         return <Circle
                             x={anchor.x}
                             y={anchor.y}
                             radius={4 / scale}
-                            fill={"#FFFFFF"}
+                            fill={idx === 0 ? "#0CA0EB" : "#FFFFFF"}
                             shadowColor="#00000040"
                             shadowBlur={4 / scale}
                             shadowOffsetX={0}
