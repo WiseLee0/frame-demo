@@ -15,6 +15,15 @@ export const selectionBoxConfig = [{
 }, {
     type: 'frame',
     minWH: [1, 1] as WH,
+}, {
+    type: 'shape_circle',
+    minWH: [1, 1] as WH,
+}, {
+    type: 'image',
+    minWH: [1, 1] as WH,
+    maxWH: [8192, 8192] as WH,
+    rotationListening: false,
+    keepRatio: true,
 }]
 
 export const getSelectionBoxConfig = (type: string) => {

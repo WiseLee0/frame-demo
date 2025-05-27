@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { getProjectState, useProjectState } from "../projectState"
-import { changeSelectionRender, clearSelectionNodes, flattenNestedArrays, getPointsBoundingBox, getRotatedRectangleCorners, getSelectionBoxState, getTransform, setSelectionBoxState, useSelectionBoxState } from "."
+import { changeSelectionRender, clearSelectionNodes, flattenNestedArrays, getPointsBoundingBox, getRotatedRectangleCorners, getSelectionBoxConfig, getSelectionBoxState, getTransform, setSelectionBoxState, useSelectionBoxState } from "."
 import { getHoverSelectionRectState } from "../hover-selection-rect"
 import { getSharedStage } from "../App"
 import _ from "lodash"
@@ -99,107 +99,249 @@ export const useSelectionBoxEvent = () => {
     }, [selection, renderDep])
 
     const handleOneResize = () => {
-        const tr = new Transform();
-        tr.reset();
         const element = mouseRef.current.elements[0];
         const oldElement = mouseRef.current.oldElements[0];
-        let width = oldElement.width, height = oldElement.height;
-        const oldTr = getTransform(oldElement);
+        const config = getSelectionBoxConfig(element.type);
         const { hotId, currentStageX, currentStageY, stageX, stageY } = mouseRef.current;
-        const [dx, dy] = [currentStageX - stageX, currentStageY - stageY];
 
-        const radians = (oldElement.rotation * Math.PI) / 180;
+        // 检查是否允许操作
+        if (!isOperationAllowed(hotId, config)) return;
+
+        // 初始化变换和坐标系转换
+        const tr = new Transform();
+        tr.reset();
+        const oldTr = getTransform(oldElement);
+        const [dx, dy] = [currentStageX - stageX, currentStageY - stageY];
+        const [localDx, localDy] = convertToLocalCoordinates(dx, dy, oldElement.rotation);
+
+        // 计算新尺寸
+        let { width, height } = calculateNewDimensions(hotId, oldElement, localDx, localDy);
+
+        // 应用尺寸限制和等比缩放
+        ({ width, height } = applySizeConstraints(width, height, oldElement, config, hotId));
+
+        // 计算位置变换
+        applyTransform(tr, hotId, oldElement, width, height);
+
+        // 处理旋转操作
+        if (hotId.includes('rotation')) {
+            handleRotation(tr, hotId, oldElement, currentStageX, currentStageY, oldTr);
+            // 旋转操作不改变尺寸，直接使用原尺寸
+            width = oldElement.width;
+            height = oldElement.height;
+        }
+
+        // 应用最终变换并更新元素
+        updateElement(element, oldTr, tr, width, height);
+    };
+
+    // 辅助函数：检查操作是否被允许
+    const isOperationAllowed = (hotId: string, config: any): boolean => {
+        if (hotId.includes('border') && !config.edgeListening) return false;
+        if (hotId.includes('anchor') && !config.anchorListening) return false;
+        if (hotId.includes('rotation') && !config.rotationListening) return false;
+        return true;
+    };
+
+    // 辅助函数：坐标系转换
+    const convertToLocalCoordinates = (dx: number, dy: number, rotation: number): [number, number] => {
+        const radians = (rotation * Math.PI) / 180;
         const cos = Math.cos(radians);
         const sin = Math.sin(radians);
+        return [dx * cos + dy * sin, -dx * sin + dy * cos];
+    };
 
-        // 将全局坐标系的dx/dy转换为元素局部坐标系的delta
-        const localDx = dx * cos + dy * sin;
-        const localDy = -dx * sin + dy * cos;
+    // 辅助函数：计算新尺寸
+    const calculateNewDimensions = (hotId: string, oldElement: any, localDx: number, localDy: number) => {
+        let width = oldElement.width;
+        let height = oldElement.height;
 
-        if (hotId === 'border-right') {
-            width = oldElement.width + localDx;
+        switch (hotId) {
+            case 'border-right':
+                width = oldElement.width + localDx;
+                break;
+            case 'border-bottom':
+                height = oldElement.height + localDy;
+                break;
+            case 'border-left':
+                width = oldElement.width - localDx;
+                break;
+            case 'border-top':
+                height = oldElement.height - localDy;
+                break;
+            case 'anchor-top-left':
+                width = oldElement.width - localDx;
+                height = oldElement.height - localDy;
+                break;
+            case 'anchor-top-right':
+                width = oldElement.width + localDx;
+                height = oldElement.height - localDy;
+                break;
+            case 'anchor-bottom-left':
+                width = oldElement.width - localDx;
+                height = oldElement.height + localDy;
+                break;
+            case 'anchor-bottom-right':
+                width = oldElement.width + localDx;
+                height = oldElement.height + localDy;
+                break;
         }
-        else if (hotId === 'border-bottom') {
-            height = oldElement.height + localDy;
+
+        return { width, height };
+    };
+
+    // 辅助函数：应用尺寸限制和等比缩放
+    const applySizeConstraints = (width: number, height: number, oldElement: any, config: any, hotId: string) => {
+        // 先应用基本尺寸限制
+        width = Math.max(config.minWH[0], Math.min(config.maxWH[0], width));
+        height = Math.max(config.minWH[1], Math.min(config.maxWH[1], height));
+
+        // 如果需要等比缩放
+        if (config.keepRatio && !hotId.includes('rotation')) {
+            return applyProportionalScaling(width, height, oldElement, config, hotId);
         }
-        else if (hotId === 'border-left') {
-            width = oldElement.width - localDx;
-            tr.translate(localDx, 0);
+
+        return { width, height };
+    };
+
+    // 辅助函数：等比缩放处理
+    const applyProportionalScaling = (width: number, height: number, oldElement: any, config: any, hotId: string) => {
+        if (hotId.includes('anchor')) {
+            // 角点拖拽：使用对角线距离计算缩放比例
+            const oldDiagonal = Math.sqrt(oldElement.width * oldElement.width + oldElement.height * oldElement.height);
+            const newDiagonal = Math.sqrt(width * width + height * height);
+            const scale = newDiagonal / oldDiagonal;
+
+            return applyScaleWithLimits(scale, oldElement, config);
+        } else {
+            // 边框拖拽：基于对面边中心点进行等比缩放
+            const isHorizontalPrimary = hotId.includes('right') || hotId.includes('left');
+            const scale = isHorizontalPrimary ? width / oldElement.width : height / oldElement.height;
+
+            return applyScaleWithLimits(scale, oldElement, config);
         }
-        else if (hotId === 'border-top') {
-            height = oldElement.height - localDy;
-            tr.translate(0, localDy);
-        } else if (hotId === 'anchor-top-left') {
-            width = oldElement.width - localDx;
-            height = oldElement.height - localDy;
-            tr.translate(localDx, localDy);
-        } else if (hotId === 'anchor-top-right') {
-            width = oldElement.width + localDx;
-            height = oldElement.height - localDy;
-            tr.translate(0, localDy);
-        } else if (hotId === 'anchor-bottom-left') {
-            width = oldElement.width - localDx;
-            height = oldElement.height + localDy;
-            tr.translate(localDx, 0);
-        } else if (hotId === 'anchor-bottom-right') {
-            width = oldElement.width + localDx;
-            height = oldElement.height + localDy;
-        } else if (hotId.includes('rotation')) {
-            const halfW = oldElement.width / 2;
-            const halfH = oldElement.height / 2;
-            const invTr = oldTr.copy().invert();
-            const { x: localDx, y: localDy } = invTr.point({ x: currentStageX, y: currentStageY });
+    };
 
-            // 计算元素中心点
-            const centerX = halfW;
-            const centerY = halfH;
+    // 辅助函数：应用缩放并检查限制
+    const applyScaleWithLimits = (scale: number, oldElement: any, config: any) => {
+        let width = oldElement.width * scale;
+        let height = oldElement.height * scale;
 
-            // 计算鼠标相对于元素中心的角度
-            const mouseAngle = Math.atan2(localDy - centerY, localDx - centerX) * 180 / Math.PI;
+        // 检查缩放后的尺寸是否超出限制
+        const maxScaleByWidth = config.maxWH[0] / oldElement.width;
+        const maxScaleByHeight = config.maxWH[1] / oldElement.height;
+        const minScaleByWidth = config.minWH[0] / oldElement.width;
+        const minScaleByHeight = config.minWH[1] / oldElement.height;
 
-            // 计算旋转控制点相对于元素中心的初始角度
-            let controlPointAngle = 0;
-            if (hotId === 'rotation-top-left') {
-                controlPointAngle = Math.atan2(-halfH, -halfW) * 180 / Math.PI;
-            } else if (hotId === 'rotation-top-right') {
-                controlPointAngle = Math.atan2(-halfH, halfW) * 180 / Math.PI;
-            } else if (hotId === 'rotation-bottom-left') {
-                controlPointAngle = Math.atan2(halfH, -halfW) * 180 / Math.PI;
-            } else if (hotId === 'rotation-bottom-right') {
-                controlPointAngle = Math.atan2(halfH, halfW) * 180 / Math.PI;
-            }
-
-            // 计算新的旋转角度
-            let newRotation = mouseAngle - controlPointAngle;
-            newRotation = (newRotation + 360) % 360;
-
-            // 应用旋转
-            tr.translate(halfW, halfH);
-            tr.rotate(newRotation * (Math.PI / 180));
-            tr.translate(-halfW, -halfH);
-
-            // 更新旋转光标
-            const stage = getSharedStage()
-            if (hotId === 'rotation-top-left') {
-                stage.content.style.cursor = getCursor('nwse-rotate', oldElement.rotation + newRotation)
-            } else if (hotId === 'rotation-top-right') {
-                stage.content.style.cursor = getCursor('nesw-rotate', oldElement.rotation + newRotation)
-            } else if (hotId === 'rotation-bottom-right') {
-                stage.content.style.cursor = getCursor('senw-rotate', oldElement.rotation + newRotation)
-            } else if (hotId === 'rotation-bottom-left') {
-                stage.content.style.cursor = getCursor('swne-rotate', oldElement.rotation + newRotation)
-            }
+        // 计算最终允许的缩放比例
+        let finalScale = scale;
+        if (width > config.maxWH[0] || height > config.maxWH[1]) {
+            finalScale = Math.min(maxScaleByWidth, maxScaleByHeight, scale);
         }
-        // 应用变换
+        if (width < config.minWH[0] || height < config.minWH[1]) {
+            finalScale = Math.max(minScaleByWidth, minScaleByHeight, scale);
+        }
+
+        return {
+            width: oldElement.width * finalScale,
+            height: oldElement.height * finalScale
+        };
+    };
+
+    // 辅助函数：应用位置变换
+    const applyTransform = (tr: Transform, hotId: string, oldElement: any, width: number, height: number) => {
+        const widthChange = oldElement.width - width;
+        const heightChange = oldElement.height - height;
+
+        switch (hotId) {
+            case 'border-left':
+                // 左边拖拽：右边中心固定，需要调整位置
+                tr.translate(widthChange, (oldElement.height - height) / 2);
+                break;
+            case 'border-right':
+                // 右边拖拽：左边中心固定，垂直居中
+                tr.translate(0, (oldElement.height - height) / 2);
+                break;
+            case 'border-top':
+                // 上边拖拽：下边中心固定，需要调整位置
+                tr.translate((oldElement.width - width) / 2, heightChange);
+                break;
+            case 'border-bottom':
+                // 下边拖拽：上边中心固定，水平居中
+                tr.translate((oldElement.width - width) / 2, 0);
+                break;
+            case 'anchor-top-left':
+                tr.translate(widthChange, heightChange);
+                break;
+            case 'anchor-top-right':
+                tr.translate(0, heightChange);
+                break;
+            case 'anchor-bottom-left':
+                tr.translate(widthChange, 0);
+                break;
+        }
+    };
+
+    // 辅助函数：处理旋转
+    const handleRotation = (tr: Transform, hotId: string, oldElement: any, currentStageX: number, currentStageY: number, oldTr: Transform) => {
+        const halfW = oldElement.width / 2;
+        const halfH = oldElement.height / 2;
+        const invTr = oldTr.copy().invert();
+        const { x: localDx, y: localDy } = invTr.point({ x: currentStageX, y: currentStageY });
+
+        // 计算鼠标相对于元素中心的角度
+        const centerX = halfW;
+        const centerY = halfH;
+        const mouseAngle = Math.atan2(localDy - centerY, localDx - centerX) * 180 / Math.PI;
+
+        // 计算旋转控制点的初始角度
+        const controlPointAngles: Record<string, number> = {
+            'rotation-top-left': Math.atan2(-halfH, -halfW) * 180 / Math.PI,
+            'rotation-top-right': Math.atan2(-halfH, halfW) * 180 / Math.PI,
+            'rotation-bottom-left': Math.atan2(halfH, -halfW) * 180 / Math.PI,
+            'rotation-bottom-right': Math.atan2(halfH, halfW) * 180 / Math.PI,
+        };
+
+        const controlPointAngle = controlPointAngles[hotId] || 0;
+        let newRotation = mouseAngle - controlPointAngle;
+        newRotation = (newRotation + 360) % 360;
+
+        // 应用旋转变换
+        tr.translate(halfW, halfH);
+        tr.rotate(newRotation * (Math.PI / 180));
+        tr.translate(-halfW, -halfH);
+
+        // 更新光标
+        updateRotationCursor(hotId, oldElement.rotation + newRotation);
+    };
+
+    // 辅助函数：更新旋转光标
+    const updateRotationCursor = (hotId: string, rotation: number) => {
+        const stage = getSharedStage();
+        const cursorMap: Record<string, string> = {
+            'rotation-top-left': 'nwse-rotate',
+            'rotation-top-right': 'nesw-rotate',
+            'rotation-bottom-right': 'senw-rotate',
+            'rotation-bottom-left': 'swne-rotate',
+        };
+
+        const cursorType = cursorMap[hotId];
+        if (cursorType) {
+            stage.content.style.cursor = getCursor(cursorType as any, rotation);
+        }
+    };
+
+    // 辅助函数：更新元素属性
+    const updateElement = (element: any, oldTr: Transform, tr: Transform, width: number, height: number) => {
         const newTr = oldTr.multiply(tr);
         const result = newTr.decompose();
 
-        // 更新元素属性
         element.x = result.x;
         element.y = result.y;
         element.width = width;
         element.height = height;
         element.rotation = result.rotation;
+
         changeSelectionRender();
     };
 
@@ -241,18 +383,101 @@ export const useSelectionBoxEvent = () => {
             deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
         }
 
+        // 检查所有元素的尺寸限制，计算允许的缩放比例
+        const constrainedScales = applyMultipleElementsConstraints(deltaX, deltaY);
+        const finalDeltaX = constrainedScales.deltaX;
+        const finalDeltaY = constrainedScales.deltaY;
+
+        // 重新计算偏移量（如果缩放比例被约束了）
+        let finalOffsetX = offsetX;
+        let finalOffsetY = offsetY;
+
+        if (hotId === 'border-left' && finalDeltaX !== deltaX) {
+            const actualWidthChange = oldBoxNode.width * (1 - finalDeltaX);
+            finalOffsetX = actualWidthChange;
+        } else if (hotId === 'border-top' && finalDeltaY !== deltaY) {
+            const actualHeightChange = oldBoxNode.height * (1 - finalDeltaY);
+            finalOffsetY = actualHeightChange;
+        } else if (hotId === 'anchor-top-left') {
+            if (finalDeltaX !== deltaX) {
+                const actualWidthChange = oldBoxNode.width * (1 - finalDeltaX);
+                finalOffsetX = actualWidthChange;
+            }
+            if (finalDeltaY !== deltaY) {
+                const actualHeightChange = oldBoxNode.height * (1 - finalDeltaY);
+                finalOffsetY = actualHeightChange;
+            }
+        } else if (hotId === 'anchor-top-right' && finalDeltaY !== deltaY) {
+            const actualHeightChange = oldBoxNode.height * (1 - finalDeltaY);
+            finalOffsetY = actualHeightChange;
+        } else if (hotId === 'anchor-bottom-left' && finalDeltaX !== deltaX) {
+            const actualWidthChange = oldBoxNode.width * (1 - finalDeltaX);
+            finalOffsetX = actualWidthChange;
+        }
+
         for (const element of mouseRef.current.elements) {
             const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
-            element.x = (oldElement.x - oldBoxNode.x) * deltaX + oldBoxNode.x + offsetX
-            element.y = (oldElement.y - oldBoxNode.y) * deltaY + oldBoxNode.y + offsetY
-            element.width = oldElement.width * deltaX
-            element.height = oldElement.height * deltaY
+            element.x = (oldElement.x - oldBoxNode.x) * finalDeltaX + oldBoxNode.x + finalOffsetX
+            element.y = (oldElement.y - oldBoxNode.y) * finalDeltaY + oldBoxNode.y + finalOffsetY
+            element.width = oldElement.width * finalDeltaX
+            element.height = oldElement.height * finalDeltaY
 
         }
         changeSelectionRender()
     }
 
-    const handleMultipleAndRotationResize = () => {
+    // 辅助函数：为多元素应用尺寸约束
+    const applyMultipleElementsConstraints = (deltaX: number, deltaY: number) => {
+        let constrainedDeltaX = deltaX;
+        let constrainedDeltaY = deltaY;
+
+        // 遍历所有元素，检查尺寸限制
+        for (const element of mouseRef.current.elements) {
+            const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id);
+            if (!oldElement) continue;
+
+            const config = getSelectionBoxConfig(element.type);
+            
+            // 计算缩放后的尺寸
+            const newWidth = oldElement.width * deltaX;
+            const newHeight = oldElement.height * deltaY;
+
+            // 检查宽度限制
+            if (config.minWH && config.minWH[0] !== undefined) {
+                if (newWidth < config.minWH[0]) {
+                    const minRequiredDeltaX = config.minWH[0] / oldElement.width;
+                    constrainedDeltaX = Math.max(constrainedDeltaX, minRequiredDeltaX);
+                }
+            }
+            if (config.maxWH && config.maxWH[0] !== undefined) {
+                if (newWidth > config.maxWH[0]) {
+                    const maxAllowedDeltaX = config.maxWH[0] / oldElement.width;
+                    constrainedDeltaX = Math.min(constrainedDeltaX, maxAllowedDeltaX);
+                }
+            }
+
+            // 检查高度限制
+            if (config.minWH && config.minWH[1] !== undefined) {
+                if (newHeight < config.minWH[1]) {
+                    const minRequiredDeltaY = config.minWH[1] / oldElement.height;
+                    constrainedDeltaY = Math.max(constrainedDeltaY, minRequiredDeltaY);
+                }
+            }
+            if (config.maxWH && config.maxWH[1] !== undefined) {
+                if (newHeight > config.maxWH[1]) {
+                    const maxAllowedDeltaY = config.maxWH[1] / oldElement.height;
+                    constrainedDeltaY = Math.min(constrainedDeltaY, maxAllowedDeltaY);
+                }
+            }
+        }
+
+        return {
+            deltaX: constrainedDeltaX,
+            deltaY: constrainedDeltaY
+        };
+    };
+
+    const handleMultipleKeepRatioResize = () => {
         const oldBoxNode = mouseRef.current.oldBoxNode
         const { hotId, currentStageX, currentStageY, stageX, stageY } = mouseRef.current;
         const [dx, dy] = [currentStageX - stageX, currentStageY - stageY];
@@ -318,21 +543,21 @@ export const useSelectionBoxEvent = () => {
         // 应用等比缩放到所有元素
         for (const element of mouseRef.current.elements) {
             const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
-            
+
             // 计算元素相对于包围盒的位置
             const relativeX = oldElement.x - oldBoxNode.x;
             const relativeY = oldElement.y - oldBoxNode.y;
-            
+
             // 应用等比缩放
             element.x = relativeX * scale + oldBoxNode.x + offsetX;
             element.y = relativeY * scale + oldBoxNode.y + offsetY;
             element.width = oldElement.width * scale;
             element.height = oldElement.height * scale;
-            
+
             // 旋转角度保持不变
             element.rotation = oldElement.rotation;
         }
-        
+
         changeSelectionRender();
     }
 
@@ -346,9 +571,10 @@ export const useSelectionBoxEvent = () => {
         }
 
         // 多个元素内存在旋转元素
-        const hasRotationElements = elements.some((element: any) => element.rotation !== 0);
-        if (hasRotationElements) {
-            handleMultipleAndRotationResize()
+        const hasRotation = elements.some((element: any) => element.rotation !== 0);
+        const hasKeepRatio = elements.some((element: any) => getSelectionBoxConfig(element.type).keepRatio);
+        if (hasRotation || hasKeepRatio) {
+            handleMultipleKeepRatioResize()
             return;
         }
 
