@@ -4,6 +4,7 @@ import { getSharedStage } from "../App"
 import { getSelectionBoxState, getTransform, hitTestRectNodes, isPointInRect } from "../selection-box"
 import { getHoverSelectionRectState, setHoverSelectionRectState } from "."
 import { getGhostSelectionRectState } from "../ghost-selection-rect"
+import { getCursor } from "../cursor"
 export const useHoverSelectionRectEvent = () => {
     useEffect(() => {
         const stage = getSharedStage()
@@ -71,8 +72,8 @@ export const useHoverSelectionRectEvent = () => {
                     { id: 'anchor-bottom-right', cursor: 'nwse-resize', x: box.width, y: box.height, width: anchorHoverVal, height: anchorHoverVal }
                 ].map(item => ({ ...item, x: item.x - anchorHoverVal / 2, y: item.y - anchorHoverVal / 2 }))
                 for (const anchor of anchorRects) {
-                    if (isPointInRect(boxPos, anchor)) {
-                        stage.content.style.cursor = anchor.cursor
+                    if (isPointInRect(boxPos, anchor)) {                        
+                        stage.content.style.cursor = getCursor(anchor.cursor as any, box.rotation)
                         return true
                     }
                 }
@@ -81,15 +82,14 @@ export const useHoverSelectionRectEvent = () => {
                 const rotationHoverVal = 22 / scale
                 const diff = 6 / scale
                 const rotationRects = [
-                    { id: 'rotation-top-left', cursor: 'top-left-rotation', x: - anchorHoverVal / 2 - diff, y: - anchorHoverVal / 2 - diff, width: rotationHoverVal, height: rotationHoverVal },
-                    { id: 'rotation-top-right', cursor: 'top-right-rotation', x: box.width - anchorHoverVal / 2, y: - anchorHoverVal / 2 - diff, width: rotationHoverVal, height: rotationHoverVal },
-                    { id: 'rotation-bottom-left', cursor: 'bottom-left-rotation', x: - anchorHoverVal / 2 - diff, y: box.height - anchorHoverVal / 2, width: rotationHoverVal, height: rotationHoverVal },
-                    { id: 'rotation-bottom-right', cursor: 'bottom-right-rotation', x: box.width - anchorHoverVal / 2, y: box.height - anchorHoverVal / 2, width: rotationHoverVal, height: rotationHoverVal }
+                    { id: 'rotation-top-left', cursor: 'nwse-rotate', x: - anchorHoverVal / 2 - diff, y: - anchorHoverVal / 2 - diff, width: rotationHoverVal, height: rotationHoverVal },
+                    { id: 'rotation-top-right', cursor: 'nesw-rotate', x: box.width - anchorHoverVal / 2, y: - anchorHoverVal / 2 - diff, width: rotationHoverVal, height: rotationHoverVal },
+                    { id: 'rotation-bottom-left', cursor: 'swne-rotate', x: - anchorHoverVal / 2 - diff, y: box.height - anchorHoverVal / 2, width: rotationHoverVal, height: rotationHoverVal },
+                    { id: 'rotation-bottom-right', cursor: 'senw-rotate', x: box.width - anchorHoverVal / 2, y: box.height - anchorHoverVal / 2, width: rotationHoverVal, height: rotationHoverVal }
                 ]
                 for (const rotationAnchor of rotationRects) {
                     if (isPointInRect(boxPos, rotationAnchor)) {
-                        stage.content.style.cursor = ''
-                        setProjectState({ cursor: rotationAnchor.cursor })
+                        stage.content.style.cursor = getCursor(rotationAnchor.cursor as any, box.rotation)
                         return true
                     }
                 }
@@ -104,7 +104,7 @@ export const useHoverSelectionRectEvent = () => {
                 ].map(item => ({ ...item, x: item.x - borderHoverVal / 2, y: item.y - borderHoverVal / 2 }))
                 for (const borderAnchor of borderRects) {
                     if (isPointInRect(boxPos, borderAnchor)) {
-                        stage.content.style.cursor = borderAnchor.cursor
+                        stage.content.style.cursor = getCursor(borderAnchor.cursor as any,  box.rotation)
                         return true
                     }
                 }
@@ -116,7 +116,6 @@ export const useHoverSelectionRectEvent = () => {
             }
 
             stage.content.style.cursor = ''
-            setProjectState({ cursor: '' })
             return false
         }
 
