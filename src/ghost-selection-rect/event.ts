@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { getSharedStage } from "../App";
 import { getGhostSelectionRectState, setGhostSelectionRectState } from ".";
 import { getProjectState, setProjectState } from "../projectState";
-import { hitTestRectNodes } from "../selection-box";
+import { getSelectionBoxState, hitTestRectNodes, isPointInRect, transformRenderNode } from "../selection-box";
 import { getHoverSelectionRectState } from "../hover-selection-rect";
 interface GhostNode {
     x: number;
@@ -27,9 +27,18 @@ export const useGhostSelectionRectEvent = () => {
             const pos = stage.getRelativePointerPosition();
             const hotId = getHoverSelectionRectState('hotId')
             const hoverNode = getHoverSelectionRectState('node')
+            const nodes = getSelectionBoxState('nodes')
             if (!pos || hotId || hoverNode) {
                 mouseRef.current.isDown = false
                 return
+            }
+            if (nodes?.length) {
+                for (const node of nodes) {
+                    if (isPointInRect(pos, node)) {
+                        mouseRef.current.isDown = false
+                        return
+                    }
+                }
             }
             mouseRef.current.stageX = pos.x
             mouseRef.current.stageY = pos.y
@@ -136,7 +145,8 @@ export const useGhostSelectionRectEvent = () => {
             const elements = getProjectState('elements')
             const selection = []
             for (const element of elements) {
-                if (hitTestRectNodes(getGhostNodeInfo(ghostNode), element)) {
+                const renderNode = transformRenderNode(element)
+                if (hitTestRectNodes(getGhostNodeInfo(ghostNode), renderNode)) {
                     selection.push(element.id)
                 }
             }

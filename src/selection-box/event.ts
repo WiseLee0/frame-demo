@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { getProjectState, useProjectState } from "../projectState"
-import { changeSelectionRender, clearSelectionNodes, flattenNestedArrays, getPointsBoundingBox, getRotatedRectangleCorners, getSelectionBoxConfig, getSelectionBoxState, getTransform, setSelectionBoxState, useSelectionBoxState } from "."
+import { changeSelectionRender, clearSelectionNodes, flattenNestedArrays, getPointsBoundingBox, getRotatedRectangleCorners, getSelectionBoxConfig, getSelectionBoxState, getTransform, setSelectionBoxState, transformRenderNode, useSelectionBoxState } from "."
 import { getHoverSelectionRectState } from "../hover-selection-rect"
 import { getSharedStage } from "../App"
 import _ from "lodash"
@@ -56,7 +56,7 @@ export const useSelectionBoxEvent = () => {
             if (!mouseRef.current.isEnoughMove && (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold)) {
                 const dragNodeId = getSelectionBoxState('dragNodeId')
                 const oldBoxNode = getSelectionBoxState('nodes').find(node => node.id === dragNodeId);
-                if (oldBoxNode?.selection?.length) {
+                if (oldBoxNode) {
                     mouseRef.current.oldBoxNode = _.cloneDeep(oldBoxNode)
                     mouseRef.current.elements = getProjectState('selection').map(id => getElementById(id))
                     mouseRef.current.oldElements = _.cloneDeep(mouseRef.current.elements)
@@ -92,9 +92,12 @@ export const useSelectionBoxEvent = () => {
             return
         }
         const elements = getProjectState('elements')
+        // 获取选中的Nodes
         const nodes = getSelectionNodes(selection, elements) as any[]
+        // 扁平化Nodes
         const flatNodes = flattenNestedArrays(nodes)
-        const boxs = transformToBoxs(flatNodes) as any[]
+        // 合并Nodes
+        const boxs = mergeToBoxs(flatNodes) as any[]
         setSelectionBoxState({ nodes: boxs, innerNodes: nodes })
     }, [selection, renderDep])
 
@@ -437,7 +440,7 @@ export const useSelectionBoxEvent = () => {
             if (!oldElement) continue;
 
             const config = getSelectionBoxConfig(element.type);
-            
+
             // 计算缩放后的尺寸
             const newWidth = oldElement.width * deltaX;
             const newHeight = oldElement.height * deltaY;
@@ -587,7 +590,7 @@ const getSelectionNodes = (selection: string[], elements: any[]) => {
     const node = []
     for (const element of elements) {
         if (selection.includes(element.id)) {
-            node.push({ id: element.id, x: element.x, y: element.y, width: element.width, height: element.height, rotation: element.rotation })
+            node.push(transformRenderNode(element))
         }
         if (element?.elements) {
             const nodes = getSelectionNodes(selection, element.elements) as any[];
@@ -599,12 +602,23 @@ const getSelectionNodes = (selection: string[], elements: any[]) => {
     return node
 }
 
-const transformToBoxs = (nodesArr: any[][]) => {
+const transformSelectionNodes = (nodesArr: any[][]) => {
+    const result = []
+    for (const nodes of nodesArr) {
+        const temp = []
+        for (const node of nodes) {
+            temp.push(transformRenderNode(node))
+        }
+        result.push(temp)
+    }
+    return result
+}
+
+const mergeToBoxs = (nodesArr: any[][]) => {
     // 如果只有一个元素被选中，则不合并
     if (nodesArr.length === 1 && nodesArr[0].length === 1) {
         const node = nodesArr[0][0]
         return [{
-            id: 'box-0',
             selection: [node.id],
             x: node.x,
             y: node.y,
@@ -631,7 +645,6 @@ const transformToBoxs = (nodesArr: any[][]) => {
         }
         const box = getPointsBoundingBox(points)
         newNodes.push({
-            id: `box-${newNodes.length}`,
             selection,
             x: box[0],
             y: box[1],

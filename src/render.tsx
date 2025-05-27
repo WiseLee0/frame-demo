@@ -28,14 +28,16 @@ function Render({ elements }: { elements: any[] }) {
                 key={element.id}
                 x={element.x}
                 y={element.y}
+                rotation={element.rotation}
                 width={element.width * element.scaleX}
                 height={element.height * element.scaleY}
                 radiusX={(element.width * element.scaleX) / 2}
                 radiusY={(element.height * element.scaleY) / 2}
+                offsetX={-(element.width * element.scaleX) / 2}
+                offsetY={-(element.height * element.scaleY) / 2}
                 scaleX={element.scaleX}
                 scaleY={element.scaleY}
                 fill={element.data.backgroundColor}
-                rotation={element.rotation}
             />
         }
         if (element.type === 'image') {

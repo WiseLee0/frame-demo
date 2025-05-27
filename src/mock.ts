@@ -308,5 +308,23 @@ export const mockElements = [
             "width": 1024,
             "height": 1024
         }
+    },
+    {
+        "id": "element-shape_circle-mb6h9hcm",
+        "type": "shape_circle",
+        "x": 11662.194936321695,
+        "y": 1677.5196452343018,
+        "status": "success",
+        "width": 2339.221557846003,
+        "height": 1023.9999999999914,
+        "scaleX": 1,
+        "scaleY": 1,
+        "rotation": -26.183345684372405,
+        "data": {
+            "shape": "circle",
+            "backgroundColor": "rgba(255, 92, 92, 1)",
+            "width": 1024,
+            "height": 1024
+        }
     }
 ]

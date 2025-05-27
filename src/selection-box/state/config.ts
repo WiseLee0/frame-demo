@@ -15,6 +15,7 @@ export const selectionBoxConfig = [{
 }, {
     type: 'frame',
     minWH: [1, 1] as WH,
+    rotationListening: false,
 }, {
     type: 'shape_circle',
     minWH: [1, 1] as WH,
