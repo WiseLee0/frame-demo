@@ -85,7 +85,7 @@ export const useGhostSelectionRectEvent = () => {
                     return v > 0 ? speed : -speed;
                 });
 
-                setProjectState({ offsetX: getProjectState('offsetX') + tx, offsetY: getProjectState('offsetY') + ty })
+                setProjectState({ x: getProjectState('x') + tx * scale, y: getProjectState('y') + ty * scale })
 
                 setGhostSelectionRectState({
                     node: {

@@ -68,18 +68,18 @@ export function SelectionBoxRects() {
 const RenderOuterLabel = ({ node, direction }: any) => {
     const scale = useProjectState('scale')
     const textRef = useRef<any>(null);
-    const text = `${Math.round(node.width * 100) / 100} x ${Math.round(node.height * 100) / 100}`
+    const text = `${Math.round(node.width * 100) / 100} × ${Math.round(node.height * 100) / 100}`
     const fontSize = 12 / scale
     const textWidth = (text.length * 10) / scale
     const paddingX = 5 / scale
-    const paddingY = 2 / scale
+    const paddingY = 3 / scale
     const [realTextWidth, setRealTextWidth] = useState(0)
     let x = 0
     let y = 0
     let scaleX = 1
     let scaleY = 1
     let textOffsetX = 0
-    let textOffsetY = -2 / scale
+    let textOffsetY = -1.3 / scale
     let rectOffsetX = 0
     let rectOffsetY = 0
     let rotation = 0

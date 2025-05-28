@@ -13,25 +13,23 @@ interface Element {
 }
 interface ProjectState {
     scale: number
-    offsetX: number
-    offsetY: number
+    x: number
+    y: number
     elements: Element[]
     selection: string[]
-    cursor: string
 }
-const offsetX = mockElements.reduce((acc, cur) => {
+const startX = mockElements.reduce((acc, cur) => {
     return Math.min(acc, cur.x)
 }, Infinity)
-const offsetY = mockElements.reduce((acc, cur) => {
+const startY = mockElements.reduce((acc, cur) => {
     return Math.min(acc, cur.y)
 }, Infinity)
 export const _projectState = createWithEqualityFn<ProjectState>()(() => ({
     scale: 0.1,
-    offsetX: offsetX - 1000,
-    offsetY: offsetY - 1000,
+    x: (startX - 1000) * 0.1,
+    y: (startY - 1000) * 0.1,
     elements: mockElements,
     selection: [],
-    cursor: '',
 }));
 
 export const {
