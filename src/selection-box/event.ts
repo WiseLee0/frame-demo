@@ -556,84 +556,227 @@ export const useSelectionBoxEvent = () => {
         const { hotId, currentStageX, currentStageY, stageX, stageY } = mouseRef.current;
         const [dx, dy] = [currentStageX - stageX, currentStageY - stageY];
 
+        // 计算基础缩放比例（基于被拖拽的框）
+        const scale = calculateKeepRatioScale(hotId, oldBoxNode, dx, dy);
+
+        // 检查所有元素的尺寸限制，计算允许的缩放比例
+        const finalScale = applyKeepRatioConstraints(scale);
+
+        // 批量更新所有元素
+        for (const element of mouseRef.current.elements) {
+            const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
+            const currentBox = mouseRef.current.oldBoxNodes.find((item: any) => item.selection.includes(oldElement.id))
+            if (!currentBox) continue;
+
+            // 计算当前框的等比缩放偏移量
+            const { offsetX, offsetY } = calculateKeepRatioBoxOffset(hotId, currentBox, scale, finalScale);
+
+            // 更新元素位置和尺寸（等比缩放）
+            updateElementKeepRatioTransform(element, oldElement, currentBox, finalScale, offsetX, offsetY);
+        }
+        
+        changeSelectionRender()
+    }
+
+    // 计算等比缩放比例
+    const calculateKeepRatioScale = (hotId: string, oldBoxNode: any, dx: number, dy: number) => {
         let scale = 1;
+
+        if (hotId === 'border-right') {
+            scale = (oldBoxNode.width + dx) / oldBoxNode.width;
+        } else if (hotId === 'border-bottom') {
+            scale = (oldBoxNode.height + dy) / oldBoxNode.height;
+        } else if (hotId === 'border-left') {
+            scale = (oldBoxNode.width - dx) / oldBoxNode.width;
+        } else if (hotId === 'border-top') {
+            scale = (oldBoxNode.height - dy) / oldBoxNode.height;
+        } else if (hotId.includes('anchor')) {
+            // 角点拖拽：使用对角线距离计算等比缩放
+            const oldDiagonal = Math.sqrt(oldBoxNode.width * oldBoxNode.width + oldBoxNode.height * oldBoxNode.height);
+            let newDiagonal = oldDiagonal; // 默认值，防止未定义
+            
+            if (hotId === 'anchor-top-left') {
+                newDiagonal = Math.sqrt((oldBoxNode.width - dx) * (oldBoxNode.width - dx) + (oldBoxNode.height - dy) * (oldBoxNode.height - dy));
+            } else if (hotId === 'anchor-top-right') {
+                newDiagonal = Math.sqrt((oldBoxNode.width + dx) * (oldBoxNode.width + dx) + (oldBoxNode.height - dy) * (oldBoxNode.height - dy));
+            } else if (hotId === 'anchor-bottom-left') {
+                newDiagonal = Math.sqrt((oldBoxNode.width - dx) * (oldBoxNode.width - dx) + (oldBoxNode.height + dy) * (oldBoxNode.height + dy));
+            } else if (hotId === 'anchor-bottom-right') {
+                newDiagonal = Math.sqrt((oldBoxNode.width + dx) * (oldBoxNode.width + dx) + (oldBoxNode.height + dy) * (oldBoxNode.height + dy));
+            }
+            
+            scale = newDiagonal / oldDiagonal;
+        }
+
+        return scale;
+    }
+
+    // 计算等比缩放的框偏移量
+    const calculateKeepRatioBoxOffset = (
+        hotId: string, 
+        currentBox: any, 
+        originalScale: number,
+        finalScale: number
+    ) => {
         let offsetX = 0;
         let offsetY = 0;
 
-        // 计算缩放比例，使用较大的变化量来确保等比缩放
+        const newWidth = currentBox.width * originalScale;
+        const newHeight = currentBox.height * originalScale;
+
+        // 计算初始偏移量
         if (hotId === 'border-right') {
-            scale = (oldBoxNode.width + dx) / oldBoxNode.width;
             // 以左边中心为固定点进行等比缩放
-            const newHeight = oldBoxNode.height * scale;
             offsetX = 0; // 左边固定
-            offsetY = (oldBoxNode.height - newHeight) / 2; // 垂直居中
+            offsetY = (currentBox.height - newHeight) / 2; // 垂直居中
         } else if (hotId === 'border-bottom') {
-            scale = (oldBoxNode.height + dy) / oldBoxNode.height;
             // 以上边中心为固定点进行等比缩放
-            const newWidth = oldBoxNode.width * scale;
-            offsetX = (oldBoxNode.width - newWidth) / 2; // 水平居中
+            offsetX = (currentBox.width - newWidth) / 2; // 水平居中
             offsetY = 0; // 上边固定
         } else if (hotId === 'border-left') {
-            scale = (oldBoxNode.width - dx) / oldBoxNode.width;
             // 以右边中心为固定点进行等比缩放
-            const newWidth = oldBoxNode.width * scale;
-            const newHeight = oldBoxNode.height * scale;
-            offsetX = oldBoxNode.width - newWidth; // 右边固定
-            offsetY = (oldBoxNode.height - newHeight) / 2; // 垂直居中
+            offsetX = currentBox.width - newWidth; // 右边固定
+            offsetY = (currentBox.height - newHeight) / 2; // 垂直居中
         } else if (hotId === 'border-top') {
-            scale = (oldBoxNode.height - dy) / oldBoxNode.height;
             // 以下边中心为固定点进行等比缩放
-            const newWidth = oldBoxNode.width * scale;
-            const newHeight = oldBoxNode.height * scale;
-            offsetX = (oldBoxNode.width - newWidth) / 2; // 水平居中
-            offsetY = oldBoxNode.height - newHeight; // 下边固定
+            offsetX = (currentBox.width - newWidth) / 2; // 水平居中
+            offsetY = currentBox.height - newHeight; // 下边固定
         } else if (hotId === 'anchor-top-left') {
-            // 使用对角线距离计算等比缩放
-            const oldDiagonal = Math.sqrt(oldBoxNode.width * oldBoxNode.width + oldBoxNode.height * oldBoxNode.height);
-            const newDiagonal = Math.sqrt((oldBoxNode.width - dx) * (oldBoxNode.width - dx) + (oldBoxNode.height - dy) * (oldBoxNode.height - dy));
-            scale = newDiagonal / oldDiagonal;
-            const newWidth = oldBoxNode.width * scale;
-            const newHeight = oldBoxNode.height * scale;
-            offsetX = oldBoxNode.width - newWidth;
-            offsetY = oldBoxNode.height - newHeight;
+            offsetX = currentBox.width - newWidth;
+            offsetY = currentBox.height - newHeight;
         } else if (hotId === 'anchor-top-right') {
-            const oldDiagonal = Math.sqrt(oldBoxNode.width * oldBoxNode.width + oldBoxNode.height * oldBoxNode.height);
-            const newDiagonal = Math.sqrt((oldBoxNode.width + dx) * (oldBoxNode.width + dx) + (oldBoxNode.height - dy) * (oldBoxNode.height - dy));
-            scale = newDiagonal / oldDiagonal;
-            const newHeight = oldBoxNode.height * scale;
-            offsetY = oldBoxNode.height - newHeight;
+            offsetX = 0;
+            offsetY = currentBox.height - newHeight;
         } else if (hotId === 'anchor-bottom-left') {
-            const oldDiagonal = Math.sqrt(oldBoxNode.width * oldBoxNode.width + oldBoxNode.height * oldBoxNode.height);
-            const newDiagonal = Math.sqrt((oldBoxNode.width - dx) * (oldBoxNode.width - dx) + (oldBoxNode.height + dy) * (oldBoxNode.height + dy));
-            scale = newDiagonal / oldDiagonal;
-            const newWidth = oldBoxNode.width * scale;
-            offsetX = oldBoxNode.width - newWidth;
+            offsetX = currentBox.width - newWidth;
+            offsetY = 0;
         } else if (hotId === 'anchor-bottom-right') {
-            const oldDiagonal = Math.sqrt(oldBoxNode.width * oldBoxNode.width + oldBoxNode.height * oldBoxNode.height);
-            const newDiagonal = Math.sqrt((oldBoxNode.width + dx) * (oldBoxNode.width + dx) + (oldBoxNode.height + dy) * (oldBoxNode.height + dy));
-            scale = newDiagonal / oldDiagonal;
+            offsetX = 0;
+            offsetY = 0;
         }
 
-        // 应用等比缩放到所有元素
-        for (const element of mouseRef.current.elements) {
-            const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
+        // 如果缩放比例被约束，重新计算偏移量
+        if (finalScale !== originalScale) {
+            const finalNewWidth = currentBox.width * finalScale;
+            const finalNewHeight = currentBox.height * finalScale;
 
-            // 计算元素相对于包围盒的位置
-            const relativeX = oldElement.x - oldBoxNode.x;
-            const relativeY = oldElement.y - oldBoxNode.y;
-
-            // 应用等比缩放
-            element.x = relativeX * scale + oldBoxNode.x + offsetX;
-            element.y = relativeY * scale + oldBoxNode.y + offsetY;
-            element.width = oldElement.width * scale;
-            element.height = oldElement.height * scale;
-
-            // 旋转角度保持不变
-            element.rotation = oldElement.rotation;
+            if (hotId === 'border-right') {
+                offsetX = 0;
+                offsetY = (currentBox.height - finalNewHeight) / 2;
+            } else if (hotId === 'border-bottom') {
+                offsetX = (currentBox.width - finalNewWidth) / 2;
+                offsetY = 0;
+            } else if (hotId === 'border-left') {
+                offsetX = currentBox.width - finalNewWidth;
+                offsetY = (currentBox.height - finalNewHeight) / 2;
+            } else if (hotId === 'border-top') {
+                offsetX = (currentBox.width - finalNewWidth) / 2;
+                offsetY = currentBox.height - finalNewHeight;
+            } else if (hotId === 'anchor-top-left') {
+                offsetX = currentBox.width - finalNewWidth;
+                offsetY = currentBox.height - finalNewHeight;
+            } else if (hotId === 'anchor-top-right') {
+                offsetX = 0;
+                offsetY = currentBox.height - finalNewHeight;
+            } else if (hotId === 'anchor-bottom-left') {
+                offsetX = currentBox.width - finalNewWidth;
+                offsetY = 0;
+            } else if (hotId === 'anchor-bottom-right') {
+                offsetX = 0;
+                offsetY = 0;
+            }
         }
 
-        changeSelectionRender();
+        return { offsetX, offsetY };
     }
+
+    // 更新元素的等比缩放变换
+    const updateElementKeepRatioTransform = (
+        element: any,
+        oldElement: any,
+        currentBox: any,
+        finalScale: number,
+        offsetX: number,
+        offsetY: number
+    ) => {
+        // 处理在父框架内的元素
+        if (currentBox.frames[oldElement.id]) {
+            const parentFrame = getElementById(currentBox.frames[oldElement.id])
+            const bx = currentBox.x - parentFrame.x
+            const by = currentBox.y - parentFrame.y
+            
+            // 计算元素相对于包围盒的位置
+            const relativeX = oldElement.x - bx;
+            const relativeY = oldElement.y - by;
+            
+            // 应用等比缩放
+            element.x = relativeX * finalScale + bx + offsetX;
+            element.y = relativeY * finalScale + by + offsetY;
+        } else {
+            // 处理普通元素
+            // 计算元素相对于包围盒的位置
+            const relativeX = oldElement.x - currentBox.x;
+            const relativeY = oldElement.y - currentBox.y;
+            
+            // 应用等比缩放
+            element.x = relativeX * finalScale + currentBox.x + offsetX;
+            element.y = relativeY * finalScale + currentBox.y + offsetY;
+        }
+
+        // 更新尺寸（等比缩放）
+        element.width = oldElement.width * finalScale;
+        element.height = oldElement.height * finalScale;
+        
+        // 旋转角度保持不变
+        element.rotation = oldElement.rotation;
+    }
+
+    // 辅助函数：为等比缩放应用尺寸约束
+    const applyKeepRatioConstraints = (scale: number) => {
+        let constrainedScale = scale;
+
+        // 遍历所有元素，检查尺寸限制
+        for (const element of mouseRef.current.elements) {
+            const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id);
+            if (!oldElement) continue;
+
+            const config = getSelectionBoxConfig(element.type);
+
+            // 计算缩放后的尺寸
+            const newWidth = oldElement.width * scale;
+            const newHeight = oldElement.height * scale;
+
+            // 检查宽度限制
+            if (config.minWH && config.minWH[0] !== undefined) {
+                if (newWidth < config.minWH[0]) {
+                    const minRequiredScale = config.minWH[0] / oldElement.width;
+                    constrainedScale = Math.max(constrainedScale, minRequiredScale);
+                }
+            }
+            if (config.maxWH && config.maxWH[0] !== undefined) {
+                if (newWidth > config.maxWH[0]) {
+                    const maxAllowedScale = config.maxWH[0] / oldElement.width;
+                    constrainedScale = Math.min(constrainedScale, maxAllowedScale);
+                }
+            }
+
+            // 检查高度限制
+            if (config.minWH && config.minWH[1] !== undefined) {
+                if (newHeight < config.minWH[1]) {
+                    const minRequiredScale = config.minWH[1] / oldElement.height;
+                    constrainedScale = Math.max(constrainedScale, minRequiredScale);
+                }
+            }
+            if (config.maxWH && config.maxWH[1] !== undefined) {
+                if (newHeight > config.maxWH[1]) {
+                    const maxAllowedScale = config.maxWH[1] / oldElement.height;
+                    constrainedScale = Math.min(constrainedScale, maxAllowedScale);
+                }
+            }
+        }
+
+        return constrainedScale;
+    };
 
     const handleMovementDelta = () => {
         const { elements } = mouseRef.current
