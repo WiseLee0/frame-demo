@@ -1,4 +1,4 @@
-import { Transform, Util } from "konva/lib/Util"
+import { Transform } from "konva/lib/Util"
 
 export const getTransform = (box: any) => {
     const { x, y, rotation = 0, scaleX = 1, scaleY = 1, skewX = 0, skewY = 0, offsetX = 0, offsetY = 0 } = box

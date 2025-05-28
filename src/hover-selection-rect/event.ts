@@ -1,33 +1,62 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { getProjectState, setProjectState } from "../projectState"
 import { getSharedStage } from "../App"
-import { getSelectionBoxState, getTransform, hitTestRectNodes, isPointInRect, setSelectionBoxState, transformRenderNode } from "../selection-box"
+import { getSelectionBoxState, setSelectionBoxState } from "../selection-box"
+import { getPointerForElement, getTransform, hitTestRectNodes, isPointInRect } from "../utils"
 import { getHoverSelectionRectState, setHoverSelectionRectState } from "."
 import { getGhostSelectionRectState } from "../ghost-selection-rect"
 import { getCursor } from "../cursor"
 export const useHoverSelectionRectEvent = () => {
+    const mouseRef = useRef({
+        isDown: false,
+        isEnoughMove: false,
+        clientX: 0,
+        clientY: 0,
+    })
     useEffect(() => {
         const handleMouseDown = (e: MouseEvent) => {
             getHoverNode(e.shiftKey)
-            setSelectionForHover(e.shiftKey)
+            mouseRef.current.isEnoughMove = true
+            setSelection(e.shiftKey)
+            mouseRef.current.isEnoughMove = false
+            mouseRef.current.isDown = true
+            mouseRef.current.clientX = e.clientX
+            mouseRef.current.clientY = e.clientY
         }
 
         const handleMouseMove = (e: MouseEvent) => {
             getHoverNode(e.shiftKey)
+            if (!mouseRef.current.isDown) return;
+            if (!mouseRef.current.isEnoughMove) {
+                const diffX = e.clientX - mouseRef.current.clientX
+                const diffY = e.clientY - mouseRef.current.clientY
+                // 移动阈值
+                const moveThreshold = 2
+                if (!mouseRef.current.isEnoughMove && (Math.abs(diffX) > moveThreshold || Math.abs(diffY) > moveThreshold)) {
+                    mouseRef.current.isEnoughMove = true
+                }
+            }
+        }
+
+        const handleMouseUp = (e: MouseEvent) => {
+            setSelection(e.shiftKey)
+            mouseRef.current.isDown = false
+            mouseRef.current.isEnoughMove = false
         }
 
         window.addEventListener('mousedown', handleMouseDown)
         window.addEventListener('mousemove', handleMouseMove)
+        window.addEventListener('mouseup', handleMouseUp)
         return () => {
             window.removeEventListener('mousedown', handleMouseDown)
             window.removeEventListener('mousemove', handleMouseMove)
+            window.removeEventListener('mouseup', handleMouseUp)
         }
     }, [])
 
     // 鼠标悬停元素获取
     const getHoverNode = (isShiftKey: boolean = false) => {
         const stage = getSharedStage()
-        const elements = getProjectState('elements')
         const pos = stage.getRelativePointerPosition()
         const ghostNode = getGhostSelectionRectState('node')
         const isDragging = getSelectionBoxState('isDragging')
@@ -63,37 +92,40 @@ export const useHoverSelectionRectEvent = () => {
         }
 
         // 鼠标碰撞检测，确定Hover元素
-        const len = elements.length
-        for (let i = 0; i < len; i++) {
-            const element = elements[len - i - 1];
-            const renderNode = transformRenderNode(element);
-            if (hitTestRectNodes(node, renderNode)) {
-                setHoverSelectionRectState({ node: renderNode })
-                return;
-            }
-        }
-        setHoverSelectionRectState({ node: null })
+        const pointerForElement = getPointerForElement()
+        setHoverSelectionRectState({ node: pointerForElement?.renderNode ?? null })
     }
 
     // 设置选区元素
-    const setSelectionForHover = (isShiftKey: boolean = false) => {
-        const node = getHoverSelectionRectState('node')
+    const setSelection = (isShiftKey: boolean = false) => {
+        const pointerForElement = getPointerForElement()
+        // 点中边框、锚点热区则不进行选区
         const hotId = getHoverSelectionRectState('hotId')
-        if (!node) {
-            if (!hotId) {
-                setProjectState({ selection: [] })
-            }
+
+        if (hotId) return;
+        const boxs = getSelectionBoxState('nodes')
+        if (boxs.length && mouseRef.current.isEnoughMove) {
             return;
         }
 
+        if (!pointerForElement) {
+            setProjectState({ selection: [] })
+            return;
+        }
+        const { id, removeIds } = pointerForElement
+        const selection = getProjectState('selection')
         if (isShiftKey) {
-            if (getProjectState('selection').includes(node.id)) {
-                setProjectState({ selection: getProjectState('selection').filter(id => id !== node.id) })
+            if (selection.includes(id)) {
+                setProjectState({ selection: selection.filter(curId => curId !== id) })
             } else {
-                setProjectState({ selection: [...getProjectState('selection'), node.id] })
+                let newSelection = selection
+                if (removeIds.length) {
+                    newSelection = selection.filter(item => !removeIds.includes(item))
+                }
+                setProjectState({ selection: [...newSelection, id] })
             }
         } else {
-            setProjectState({ selection: [node.id] })
+            setProjectState({ selection: [id] })
         }
     }
 }

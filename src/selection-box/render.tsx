@@ -79,7 +79,7 @@ const RenderOuterLabel = ({ node, direction }: any) => {
     let scaleX = 1
     let scaleY = 1
     let textOffsetX = 0
-    let textOffsetY = 0
+    let textOffsetY = -2 / scale
     let rectOffsetX = 0
     let rectOffsetY = 0
     let rotation = 0
@@ -115,6 +115,6 @@ const RenderOuterLabel = ({ node, direction }: any) => {
 
     return <Group x={x} y={y} scaleX={scaleX} scaleY={scaleY} rotation={rotation}>
         <Rect offsetX={rectOffsetX} offsetY={rectOffsetY} x={-paddingX} y={-paddingY} width={realTextWidth + paddingX * 2} height={fontSize + paddingY * 2} fill={"#0CA0EB"} listening={false} cornerRadius={4 / scale} />
-        <Text offsetX={textOffsetX} offsetY={textOffsetY} ref={textRef} text={text} fontSize={fontSize} fill={"#fff"} align="center" padding={10} width={textWidth} listening={false} />
+        <Text offsetX={textOffsetX} offsetY={textOffsetY} ref={textRef} text={text} fontSize={fontSize} fill={"#fff"} align="center" width={textWidth} listening={false} />
     </Group>
 }

@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { getSharedStage } from "../App";
 import { getGhostSelectionRectState, setGhostSelectionRectState } from ".";
 import { getProjectState, setProjectState } from "../projectState";
-import { getSelectionBoxState, hitTestRectNodes, isPointInRect, transformRenderNode } from "../selection-box";
+import { getSelectionBoxState } from "../selection-box";
+import { hitTestRectNodes, isPointInRect, transformRenderNode } from "../utils";
 import { getHoverSelectionRectState } from "../hover-selection-rect";
 interface GhostNode {
     x: number;

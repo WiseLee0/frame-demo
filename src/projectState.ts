@@ -1,5 +1,5 @@
 import { createWithEqualityFn } from "zustand/traditional";
-import { createStoreUtils } from "./utils";
+import { createStoreUtils } from "./util";
 import { mockElements } from "./mock";
 
 interface Element {

@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react"
 import { getProjectState, useProjectState } from "../projectState"
-import { changeSelectionRender, clearSelectionNodes, flattenNestedArrays, getPointsBoundingBox, getRotatedRectangleCorners, getSelectionBoxConfig, getSelectionBoxState, getTransform, setSelectionBoxState, transformRenderNode, useSelectionBoxState } from "."
+import { changeSelectionRender, clearSelectionNodes, getSelectionBoxConfig, getSelectionBoxState, setSelectionBoxState, useSelectionBoxState } from "."
+import { getPointsBoundingBox, getRotatedRectangleCorners, getTransform, transformRenderNode, flattenNestedArrays } from "../utils"
 import { getHoverSelectionRectState } from "../hover-selection-rect"
 import { getSharedStage } from "../App"
 import _ from "lodash"
-import { getElementById } from "../utils"
+import { getElementById } from "../util"
 import { Transform } from "konva/lib/Util"
 import { getCursor } from "../cursor"
 
@@ -57,11 +58,11 @@ export const useSelectionBoxEvent = () => {
             if (!mouseRef.current.isEnoughMove && (Math.abs(dx) > moveThreshold || Math.abs(dy) > moveThreshold)) {
                 const dragNodeId = getSelectionBoxState('dragNodeId')
                 const boxs = getSelectionBoxState('nodes')
-                const oldBoxNode = boxs.find(node => node.id === dragNodeId);
+                const oldBoxNode = boxs.find((node: any) => node.id === dragNodeId);
                 if (oldBoxNode) {
                     mouseRef.current.oldBoxNode = _.cloneDeep(oldBoxNode)
                     mouseRef.current.oldBoxNodes = _.cloneDeep(boxs)
-                    mouseRef.current.elements = getProjectState('selection').map(id => getElementById(id))
+                    mouseRef.current.elements = getProjectState('selection').map((id: any) => getElementById(id))
                     mouseRef.current.oldElements = _.cloneDeep(mouseRef.current.elements)
                 }
                 mouseRef.current.isEnoughMove = true
@@ -376,7 +377,7 @@ export const useSelectionBoxEvent = () => {
             // 更新元素位置和尺寸
             updateElementTransform(element, oldElement, currentBox, finalDeltaX, finalDeltaY, offsetX, offsetY);
         }
-        
+
         changeSelectionRender()
     }
 
@@ -421,11 +422,11 @@ export const useSelectionBoxEvent = () => {
 
     // 计算框的偏移量
     const calculateBoxOffset = (
-        hotId: string, 
-        currentBox: any, 
-        originalDeltaX: number, 
+        hotId: string,
+        currentBox: any,
+        originalDeltaX: number,
         originalDeltaY: number,
-        finalDeltaX: number, 
+        finalDeltaX: number,
         finalDeltaY: number
     ) => {
         let offsetX = 0;
@@ -574,7 +575,7 @@ export const useSelectionBoxEvent = () => {
             // 更新元素位置和尺寸（等比缩放）
             updateElementKeepRatioTransform(element, oldElement, currentBox, finalScale, offsetX, offsetY);
         }
-        
+
         changeSelectionRender()
     }
 
@@ -594,7 +595,7 @@ export const useSelectionBoxEvent = () => {
             // 角点拖拽：使用对角线距离计算等比缩放
             const oldDiagonal = Math.sqrt(oldBoxNode.width * oldBoxNode.width + oldBoxNode.height * oldBoxNode.height);
             let newDiagonal = oldDiagonal; // 默认值，防止未定义
-            
+
             if (hotId === 'anchor-top-left') {
                 newDiagonal = Math.sqrt((oldBoxNode.width - dx) * (oldBoxNode.width - dx) + (oldBoxNode.height - dy) * (oldBoxNode.height - dy));
             } else if (hotId === 'anchor-top-right') {
@@ -604,7 +605,7 @@ export const useSelectionBoxEvent = () => {
             } else if (hotId === 'anchor-bottom-right') {
                 newDiagonal = Math.sqrt((oldBoxNode.width + dx) * (oldBoxNode.width + dx) + (oldBoxNode.height + dy) * (oldBoxNode.height + dy));
             }
-            
+
             scale = newDiagonal / oldDiagonal;
         }
 
@@ -613,8 +614,8 @@ export const useSelectionBoxEvent = () => {
 
     // 计算等比缩放的框偏移量
     const calculateKeepRatioBoxOffset = (
-        hotId: string, 
-        currentBox: any, 
+        hotId: string,
+        currentBox: any,
         originalScale: number,
         finalScale: number
     ) => {
@@ -704,11 +705,11 @@ export const useSelectionBoxEvent = () => {
             const parentFrame = getElementById(currentBox.frames[oldElement.id])
             const bx = currentBox.x - parentFrame.x
             const by = currentBox.y - parentFrame.y
-            
+
             // 计算元素相对于包围盒的位置
             const relativeX = oldElement.x - bx;
             const relativeY = oldElement.y - by;
-            
+
             // 应用等比缩放
             element.x = relativeX * finalScale + bx + offsetX;
             element.y = relativeY * finalScale + by + offsetY;
@@ -717,7 +718,7 @@ export const useSelectionBoxEvent = () => {
             // 计算元素相对于包围盒的位置
             const relativeX = oldElement.x - currentBox.x;
             const relativeY = oldElement.y - currentBox.y;
-            
+
             // 应用等比缩放
             element.x = relativeX * finalScale + currentBox.x + offsetX;
             element.y = relativeY * finalScale + currentBox.y + offsetY;
@@ -726,7 +727,7 @@ export const useSelectionBoxEvent = () => {
         // 更新尺寸（等比缩放）
         element.width = oldElement.width * finalScale;
         element.height = oldElement.height * finalScale;
-        
+
         // 旋转角度保持不变
         element.rotation = oldElement.rotation;
     }
