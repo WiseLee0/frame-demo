@@ -356,94 +356,148 @@ export const useSelectionBoxEvent = () => {
         const { hotId, currentStageX, currentStageY, stageX, stageY } = mouseRef.current;
         const [dx, dy] = [currentStageX - stageX, currentStageY - stageY];
 
+        // 计算基础缩放比例（基于被拖拽的框）
+        const { deltaX, deltaY } = calculateBaseDelta(hotId, oldBoxNode, dx, dy);
+
+        // 检查所有元素的尺寸限制，计算允许的缩放比例
+        const constrainedScales = applyMultipleElementsConstraints(deltaX, deltaY);
+        const finalDeltaX = constrainedScales.deltaX;
+        const finalDeltaY = constrainedScales.deltaY;
+
+        // 批量更新所有元素
         for (const element of mouseRef.current.elements) {
             const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
             const currentBox = mouseRef.current.oldBoxNodes.find((item: any) => item.selection.includes(oldElement.id))
             if (!currentBox) continue;
 
-            let deltaX = 1;
-            let deltaY = 1;
-            let offsetX = 0;
-            let offsetY = 0;
+            // 计算当前框的偏移量
+            const { offsetX, offsetY } = calculateBoxOffset(hotId, currentBox, deltaX, deltaY, finalDeltaX, finalDeltaY);
 
-            if (hotId === 'border-right') {
+            // 更新元素位置和尺寸
+            updateElementTransform(element, oldElement, currentBox, finalDeltaX, finalDeltaY, offsetX, offsetY);
+        }
+        
+        changeSelectionRender()
+    }
+
+    // 计算基础缩放比例
+    const calculateBaseDelta = (hotId: string, oldBoxNode: any, dx: number, dy: number) => {
+        let deltaX = 1;
+        let deltaY = 1;
+
+        switch (hotId) {
+            case 'border-right':
                 deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
-            } else if (hotId === 'border-bottom') {
+                break;
+            case 'border-bottom':
                 deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
-            } else if (hotId === 'border-left') {
+                break;
+            case 'border-left':
                 deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
-                offsetX = currentBox.width * (1 - deltaX);
-            } else if (hotId === 'border-top') {
+                break;
+            case 'border-top':
                 deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
-                offsetY = currentBox.height * (1 - deltaY);
-            } else if (hotId === 'anchor-top-left') {
+                break;
+            case 'anchor-top-left':
                 deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
                 deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
-                offsetX = currentBox.width * (1 - deltaX);
-                offsetY = currentBox.height * (1 - deltaY);
-            } else if (hotId === 'anchor-top-right') {
+                break;
+            case 'anchor-top-right':
                 deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
                 deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
-                offsetY = currentBox.height * (1 - deltaY);
-            } else if (hotId === 'anchor-bottom-left') {
+                break;
+            case 'anchor-bottom-left':
                 deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
                 deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
-                offsetX = currentBox.width * (1 - deltaX);
-            } else if (hotId === 'anchor-bottom-right') {
+                break;
+            case 'anchor-bottom-right':
                 deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
                 deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
-            }
+                break;
+        }
 
-            // 检查所有元素的尺寸限制，计算允许的缩放比例
-            const constrainedScales = applyMultipleElementsConstraints(deltaX, deltaY);
-            const finalDeltaX = constrainedScales.deltaX;
-            const finalDeltaY = constrainedScales.deltaY;
+        return { deltaX, deltaY };
+    }
 
-            // 重新计算偏移量（如果缩放比例被约束了）
-            let finalOffsetX = offsetX;
-            let finalOffsetY = offsetY;
+    // 计算框的偏移量
+    const calculateBoxOffset = (
+        hotId: string, 
+        currentBox: any, 
+        originalDeltaX: number, 
+        originalDeltaY: number,
+        finalDeltaX: number, 
+        finalDeltaY: number
+    ) => {
+        let offsetX = 0;
+        let offsetY = 0;
 
-            if (hotId === 'border-left' && finalDeltaX !== deltaX) {
-                const actualWidthChange = currentBox.width * (1 - finalDeltaX);
-                finalOffsetX = actualWidthChange;
-            } else if (hotId === 'border-top' && finalDeltaY !== deltaY) {
-                const actualHeightChange = currentBox.height * (1 - finalDeltaY);
-                finalOffsetY = actualHeightChange;
-            } else if (hotId === 'anchor-top-left') {
-                if (finalDeltaX !== deltaX) {
-                    const actualWidthChange = currentBox.width * (1 - finalDeltaX);
-                    finalOffsetX = actualWidthChange;
-                }
-                if (finalDeltaY !== deltaY) {
-                    const actualHeightChange = currentBox.height * (1 - finalDeltaY);
-                    finalOffsetY = actualHeightChange;
-                }
-            } else if (hotId === 'anchor-top-right' && finalDeltaY !== deltaY) {
-                const actualHeightChange = currentBox.height * (1 - finalDeltaY);
-                finalOffsetY = actualHeightChange;
-            } else if (hotId === 'anchor-bottom-left' && finalDeltaX !== deltaX) {
-                const actualWidthChange = currentBox.width * (1 - finalDeltaX);
-                finalOffsetX = actualWidthChange;
-            }
+        // 计算初始偏移量
+        switch (hotId) {
+            case 'border-left':
+            case 'anchor-top-left':
+            case 'anchor-bottom-left':
+                offsetX = currentBox.width * (1 - originalDeltaX);
+                break;
+        }
 
-            if (currentBox.frames[oldElement.id]) {
-                const parentFrame = getElementById(currentBox.frames[oldElement.id])
-                const bx = currentBox.x - parentFrame.x
-                const by = currentBox.y - parentFrame.y
-                element.x = (oldElement.x - bx) * finalDeltaX + bx + finalOffsetX
-                element.y = (oldElement.y - by) * finalDeltaY + by + finalOffsetY
-                element.width = oldElement.width * finalDeltaX
-                element.height = oldElement.height * finalDeltaY
-                continue;
-            }
-            if (currentBox) {
-                element.x = (oldElement.x - currentBox.x) * finalDeltaX + currentBox.x + finalOffsetX
-                element.y = (oldElement.y - currentBox.y) * finalDeltaY + currentBox.y + finalOffsetY
-                element.width = oldElement.width * finalDeltaX
-                element.height = oldElement.height * finalDeltaY
+        switch (hotId) {
+            case 'border-top':
+            case 'anchor-top-left':
+            case 'anchor-top-right':
+                offsetY = currentBox.height * (1 - originalDeltaY);
+                break;
+        }
+
+        // 如果缩放比例被约束，重新计算偏移量
+        if (finalDeltaX !== originalDeltaX) {
+            switch (hotId) {
+                case 'border-left':
+                case 'anchor-top-left':
+                case 'anchor-bottom-left':
+                    offsetX = currentBox.width * (1 - finalDeltaX);
+                    break;
             }
         }
-        changeSelectionRender()
+
+        if (finalDeltaY !== originalDeltaY) {
+            switch (hotId) {
+                case 'border-top':
+                case 'anchor-top-left':
+                case 'anchor-top-right':
+                    offsetY = currentBox.height * (1 - finalDeltaY);
+                    break;
+            }
+        }
+
+        return { offsetX, offsetY };
+    }
+
+    // 更新元素的变换
+    const updateElementTransform = (
+        element: any,
+        oldElement: any,
+        currentBox: any,
+        finalDeltaX: number,
+        finalDeltaY: number,
+        offsetX: number,
+        offsetY: number
+    ) => {
+        // 处理在父框架内的元素
+        if (currentBox.frames[oldElement.id]) {
+            const parentFrame = getElementById(currentBox.frames[oldElement.id])
+            const bx = currentBox.x - parentFrame.x
+            const by = currentBox.y - parentFrame.y
+            element.x = (oldElement.x - bx) * finalDeltaX + bx + offsetX
+            element.y = (oldElement.y - by) * finalDeltaY + by + offsetY
+        } else {
+            // 处理普通元素
+            element.x = (oldElement.x - currentBox.x) * finalDeltaX + currentBox.x + offsetX
+            element.y = (oldElement.y - currentBox.y) * finalDeltaY + currentBox.y + offsetY
+        }
+
+        // 更新尺寸
+        element.width = oldElement.width * finalDeltaX
+        element.height = oldElement.height * finalDeltaY
     }
 
     // 辅助函数：为多元素应用尺寸约束
