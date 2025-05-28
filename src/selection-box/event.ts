@@ -356,76 +356,76 @@ export const useSelectionBoxEvent = () => {
         const { hotId, currentStageX, currentStageY, stageX, stageY } = mouseRef.current;
         const [dx, dy] = [currentStageX - stageX, currentStageY - stageY];
 
-        let deltaX = 1;
-        let deltaY = 1;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        if (hotId === 'border-right') {
-            deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
-        } else if (hotId === 'border-bottom') {
-            deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
-        } else if (hotId === 'border-left') {
-            deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
-            offsetX = dx;
-        } else if (hotId === 'border-top') {
-            deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
-            offsetY = dy;
-        } else if (hotId === 'anchor-top-left') {
-            deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
-            deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
-            offsetX = dx;
-            offsetY = dy;
-        } else if (hotId === 'anchor-top-right') {
-            deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
-            deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
-            offsetY = dy;
-        } else if (hotId === 'anchor-bottom-left') {
-            deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
-            deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
-            offsetX = dx;
-        } else if (hotId === 'anchor-bottom-right') {
-            deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
-            deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
-        }
-
-        // 检查所有元素的尺寸限制，计算允许的缩放比例
-        const constrainedScales = applyMultipleElementsConstraints(deltaX, deltaY);
-        const finalDeltaX = constrainedScales.deltaX;
-        const finalDeltaY = constrainedScales.deltaY;
-
-        // 重新计算偏移量（如果缩放比例被约束了）
-        let finalOffsetX = offsetX;
-        let finalOffsetY = offsetY;
-
-        if (hotId === 'border-left' && finalDeltaX !== deltaX) {
-            const actualWidthChange = oldBoxNode.width * (1 - finalDeltaX);
-            finalOffsetX = actualWidthChange;
-        } else if (hotId === 'border-top' && finalDeltaY !== deltaY) {
-            const actualHeightChange = oldBoxNode.height * (1 - finalDeltaY);
-            finalOffsetY = actualHeightChange;
-        } else if (hotId === 'anchor-top-left') {
-            if (finalDeltaX !== deltaX) {
-                const actualWidthChange = oldBoxNode.width * (1 - finalDeltaX);
-                finalOffsetX = actualWidthChange;
-            }
-            if (finalDeltaY !== deltaY) {
-                const actualHeightChange = oldBoxNode.height * (1 - finalDeltaY);
-                finalOffsetY = actualHeightChange;
-            }
-        } else if (hotId === 'anchor-top-right' && finalDeltaY !== deltaY) {
-            const actualHeightChange = oldBoxNode.height * (1 - finalDeltaY);
-            finalOffsetY = actualHeightChange;
-        } else if (hotId === 'anchor-bottom-left' && finalDeltaX !== deltaX) {
-            const actualWidthChange = oldBoxNode.width * (1 - finalDeltaX);
-            finalOffsetX = actualWidthChange;
-        }
-
-
         for (const element of mouseRef.current.elements) {
             const oldElement = mouseRef.current.oldElements.find(e => e.id === element.id)
             const currentBox = mouseRef.current.oldBoxNodes.find((item: any) => item.selection.includes(oldElement.id))
             if (!currentBox) continue;
+
+            let deltaX = 1;
+            let deltaY = 1;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            if (hotId === 'border-right') {
+                deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
+            } else if (hotId === 'border-bottom') {
+                deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
+            } else if (hotId === 'border-left') {
+                deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
+                offsetX = currentBox.width * (1 - deltaX);
+            } else if (hotId === 'border-top') {
+                deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
+                offsetY = currentBox.height * (1 - deltaY);
+            } else if (hotId === 'anchor-top-left') {
+                deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
+                deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
+                offsetX = currentBox.width * (1 - deltaX);
+                offsetY = currentBox.height * (1 - deltaY);
+            } else if (hotId === 'anchor-top-right') {
+                deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
+                deltaY = (oldBoxNode.height - dy) / oldBoxNode.height;
+                offsetY = currentBox.height * (1 - deltaY);
+            } else if (hotId === 'anchor-bottom-left') {
+                deltaX = (oldBoxNode.width - dx) / oldBoxNode.width;
+                deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
+                offsetX = currentBox.width * (1 - deltaX);
+            } else if (hotId === 'anchor-bottom-right') {
+                deltaX = (oldBoxNode.width + dx) / oldBoxNode.width;
+                deltaY = (oldBoxNode.height + dy) / oldBoxNode.height;
+            }
+
+            // 检查所有元素的尺寸限制，计算允许的缩放比例
+            const constrainedScales = applyMultipleElementsConstraints(deltaX, deltaY);
+            const finalDeltaX = constrainedScales.deltaX;
+            const finalDeltaY = constrainedScales.deltaY;
+
+            // 重新计算偏移量（如果缩放比例被约束了）
+            let finalOffsetX = offsetX;
+            let finalOffsetY = offsetY;
+
+            if (hotId === 'border-left' && finalDeltaX !== deltaX) {
+                const actualWidthChange = currentBox.width * (1 - finalDeltaX);
+                finalOffsetX = actualWidthChange;
+            } else if (hotId === 'border-top' && finalDeltaY !== deltaY) {
+                const actualHeightChange = currentBox.height * (1 - finalDeltaY);
+                finalOffsetY = actualHeightChange;
+            } else if (hotId === 'anchor-top-left') {
+                if (finalDeltaX !== deltaX) {
+                    const actualWidthChange = currentBox.width * (1 - finalDeltaX);
+                    finalOffsetX = actualWidthChange;
+                }
+                if (finalDeltaY !== deltaY) {
+                    const actualHeightChange = currentBox.height * (1 - finalDeltaY);
+                    finalOffsetY = actualHeightChange;
+                }
+            } else if (hotId === 'anchor-top-right' && finalDeltaY !== deltaY) {
+                const actualHeightChange = currentBox.height * (1 - finalDeltaY);
+                finalOffsetY = actualHeightChange;
+            } else if (hotId === 'anchor-bottom-left' && finalDeltaX !== deltaX) {
+                const actualWidthChange = currentBox.width * (1 - finalDeltaX);
+                finalOffsetX = actualWidthChange;
+            }
+
             if (currentBox.frames[oldElement.id]) {
                 const parentFrame = getElementById(currentBox.frames[oldElement.id])
                 const bx = currentBox.x - parentFrame.x
