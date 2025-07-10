@@ -2,12 +2,11 @@ import { Layer, Stage } from "react-konva";
 import "./App.css";
 import { RenderElements } from "./render";
 import { GhostSelectionRect, useGhostSelectionRectEvent } from "./ghost-selection-rect";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { getProjectState, setProjectState, useProjectState } from "./projectState";
 import { SelectionBoxRects, useSelectionBoxEvent } from "./selection-box";
 import { HoverSelectionRect, useHoverSelectionRectEvent } from "./hover-selection-rect";
-import CanvasKitInit from "canvaskit-wasm";
 
 let sharedStageRef = { current: null };
 export const getSharedStage = () => sharedStageRef.current as unknown as Konva.Stage;
@@ -56,15 +55,6 @@ function App() {
         y: y + e.deltaY * panSpeed
       });
     }
-    CanvasKitInit({
-      locateFile: (file) => {
-        return `/node_modules/canvaskit-wasm/bin/${file}`
-      }
-    }).then((canvaskit) => {
-      setProjectState({
-        canvaskit
-      })
-    })
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => {
       window.removeEventListener('wheel', handleWheel)

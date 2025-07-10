@@ -10,8 +10,7 @@ export interface SelectionBoxConfig {
 }
 export const selectionBoxConfig = [{
     type: 'shape_square',
-    minWH: [500, 500] as WH,
-    maxWH: [2000, 2000] as WH,
+    minWH: [1, 1] as WH,
 }, {
     type: 'frame',
     minWH: [1, 1] as WH,
@@ -22,7 +21,6 @@ export const selectionBoxConfig = [{
 }, {
     type: 'image',
     minWH: [1, 1] as WH,
-    maxWH: [8192, 8192] as WH,
     rotationListening: false,
     keepRatio: true,
 }]

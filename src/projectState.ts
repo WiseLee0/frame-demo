@@ -1,7 +1,6 @@
 import { createWithEqualityFn } from "zustand/traditional";
 import { createStoreUtils } from "./util";
 import { mockElements } from "./mock";
-import { CanvasKit } from "canvaskit-wasm";
 
 interface Element {
     id: string
@@ -18,7 +17,6 @@ interface ProjectState {
     y: number
     elements: Element[]
     selection: string[]
-    canvaskit: CanvasKit | null
 }
 const startX = mockElements.reduce((acc, cur) => {
     return Math.min(acc, cur.x)
@@ -32,7 +30,6 @@ export const _projectState = createWithEqualityFn<ProjectState>()(() => ({
     y: (startY - 1000) * 0.1,
     elements: mockElements,
     selection: [],
-    canvaskit: null
 }));
 
 export const {

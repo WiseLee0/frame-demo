@@ -19,17 +19,7 @@ export const mockElements = [
         "effects": [{
             type: "DROP_SHADOW",
             offset: { x: 1024, y: 800 },
-            radius: 200,
-            visible: true,
-            blendMode: "NORMAL",
-            spread: 0,
-            showShadowBehindNode: false,
-            color: { r: 1, g: 0, b: 0, a: 1 }
-        },
-        {
-            type: "DROP_SHADOW",
-            offset: { x: -200, y: 800 },
-            radius: 200,
+            radius: 10,
             visible: true,
             blendMode: "NORMAL",
             spread: 0,
