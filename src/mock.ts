@@ -5,21 +5,21 @@ export const mockElements = [
         "x": 2800,
         "y": 1232,
         "status": "success",
-        "width": 1024,
-        "height": 1024,
+        "width": 100,
+        "height": 100,
         "scaleX": 1,
         "scaleY": 1,
         "rotation": 0,
         "data": {
             "shape": "square",
             "backgroundColor": "#96969666",
-            "width": 1024,
-            "height": 1024
+            "width": 100,
+            "height": 100
         },
         "effects": [{
             type: "DROP_SHADOW",
-            offset: { x: 1024, y: 800 },
-            radius: 10,
+            offset: { x: 100, y: 100 },
+            radius: 200,
             visible: true,
             blendMode: "NORMAL",
             spread: 0,

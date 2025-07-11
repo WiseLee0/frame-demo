@@ -25,9 +25,9 @@ const startY = mockElements.reduce((acc, cur) => {
     return Math.min(acc, cur.y)
 }, Infinity)
 export const _projectState = createWithEqualityFn<ProjectState>()(() => ({
-    scale: 0.1,
-    x: (startX - 1000) * 0.1,
-    y: (startY - 1000) * 0.1,
+    scale: 1.5,
+    x: (startX - 200) * 1.5,
+    y: (startY - 200) * 1.5,
     elements: mockElements,
     selection: [],
 }));
