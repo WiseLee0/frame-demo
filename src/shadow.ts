@@ -97,6 +97,20 @@ const BLUR_FRAGMENT_SHADER = `#version 300 es
       fig_FragColor = result / total;
   }`
 
+// 新增颜色过滤片段着色器
+const COLOR_FILTER_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+uniform sampler2D texture0;
+uniform vec4 colorFilter;
+in vec2 _coord2;
+out vec4 fig_FragColor;
+void main() {
+    vec4 original = texture(texture0, _coord2);
+    // 只对alpha不为0的像素应用颜色过滤
+    float alphaMask = step(0.0001, original.a);
+    fig_FragColor = mix(original, colorFilter, alphaMask);
+}`
+
 // WebGL上下文管理器
 class WebGLContextManager {
     private static instance: WebGLContextManager | null = null
@@ -112,6 +126,12 @@ class WebGLContextManager {
         texture: WebGLUniformLocation | null
     } | null = null
     private positionAttribute: number = -1
+    private filterProgram: WebGLProgram | null = null
+    private filterUniforms: {
+        texture: WebGLUniformLocation | null
+        colorFilter: WebGLUniformLocation | null
+    } | null = null
+    private filterPositionAttribute: number = -1
 
     static getInstance(): WebGLContextManager {
         if (!WebGLContextManager.instance) {
@@ -129,7 +149,7 @@ class WebGLContextManager {
 
         // 获取WebGL2上下文
         this.gl = this.canvas.getContext('webgl2', {
-            preserveDrawingBuffer: true,
+            preserveDrawingBuffer: false,
             antialias: false,
             alpha: true,
             premultipliedAlpha: true
@@ -144,9 +164,16 @@ class WebGLContextManager {
         const fragShader = createShader(this.gl, this.gl.FRAGMENT_SHADER, BLUR_FRAGMENT_SHADER)
         this.program = createProgram(this.gl, vertShader, fragShader)
 
+        // 创建颜色过滤程序
+        const filterVertShader = createShader(this.gl, this.gl.VERTEX_SHADER, BLUR_VERTEX_SHADER)
+        const filterFragShader = createShader(this.gl, this.gl.FRAGMENT_SHADER, COLOR_FILTER_FRAGMENT_SHADER)
+        this.filterProgram = createProgram(this.gl, filterVertShader, filterFragShader)
+
         // 清理着色器（程序已经链接了）
         this.gl.deleteShader(vertShader)
         this.gl.deleteShader(fragShader)
+        this.gl.deleteShader(filterVertShader)
+        this.gl.deleteShader(filterFragShader)
 
         // 获取uniform和attribute位置
         this.positionAttribute = this.gl.getAttribLocation(this.program, 'position2')
@@ -156,6 +183,13 @@ class WebGLContextManager {
             blurDelta: this.gl.getUniformLocation(this.program, 'blurDelta'),
             increaseMax: this.gl.getUniformLocation(this.program, 'increaseMaxRadiusForBlurs'),
             texture: this.gl.getUniformLocation(this.program, 'texture0')
+        }
+
+        // 获取颜色过滤uniform和attribute位置
+        this.filterPositionAttribute = this.gl.getAttribLocation(this.filterProgram, 'position2')
+        this.filterUniforms = {
+            texture: this.gl.getUniformLocation(this.filterProgram, 'texture0'),
+            colorFilter: this.gl.getUniformLocation(this.filterProgram, 'colorFilter')
         }
 
         // 创建顶点缓冲区（全屏四边形）
@@ -173,7 +207,7 @@ class WebGLContextManager {
         this.gl.vertexAttribPointer(this.positionAttribute, 2, this.gl.FLOAT, false, 0, 0)
     }
 
-    generateShadow(blur: number, shapeCanvas: HTMLCanvasElement): Promise<ImageBitmap> {
+    generateShadow(blur: number, shapeCanvas: HTMLCanvasElement, colorFilter?: [number, number, number, number]): Promise<ImageBitmap> {
         if (blur <= 0) {
             throw new Error('模糊半径必须大于0')
         }
@@ -199,6 +233,8 @@ class WebGLContextManager {
         let initialTexture: WebGLTexture | null = null
         let horizTexture: WebGLTexture | null = null
         let horizFramebuffer: WebGLFramebuffer | null = null
+        let filterFramebuffer: WebGLFramebuffer | null = null
+        let filteredTexture: WebGLTexture | null = null
 
         try {
             // 创建初始纹理
@@ -207,6 +243,10 @@ class WebGLContextManager {
 
             // 上传纹理数据
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, shapeCanvas)
+
+            // 创建颜色过滤纹理
+            filteredTexture = createTexture(gl, width, height)
+            filterFramebuffer = createFramebuffer(gl, filteredTexture)
 
             // 创建中间纹理和帧缓冲区
             horizTexture = createTexture(gl, width, height)
@@ -218,12 +258,52 @@ class WebGLContextManager {
             gl.uniform1i(uniforms.increaseMax!, blur > 32 ? 1 : 0)
             gl.uniform1i(uniforms.texture!, 0)
 
+            gl.bindFramebuffer(gl.FRAMEBUFFER, filterFramebuffer)
+            gl.viewport(0, 0, width, height)
+
+            gl.useProgram(this.filterProgram!)
+            gl.uniform4f(
+                gl.getUniformLocation(this.filterProgram!, 'quad'),
+                0, 0, 1, 1
+            )
+
+            gl.activeTexture(gl.TEXTURE0)
+            gl.bindTexture(gl.TEXTURE_2D, initialTexture)
+            gl.uniform1i(this.filterUniforms!.texture!, 0)
+
+            // 设置颜色过滤的顶点属性
+            gl.enableVertexAttribArray(this.filterPositionAttribute)
+            gl.vertexAttribPointer(this.filterPositionAttribute, 2, gl.FLOAT, false, 0, 0)
+
+            // 应用颜色过滤器参数（如果提供）
+            if (colorFilter) {
+                gl.uniform4fv(this.filterUniforms!.colorFilter!, colorFilter)
+            } else {
+                // 默认白色透明（相当于原图）
+                gl.uniform4f(this.filterUniforms!.colorFilter!, 1, 0, 0, 1)
+            }
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6)
+
+            // 切换回blur程序进行模糊处理
+            gl.useProgram(program)
+            
+            // 重新设置blur程序的顶点属性
+            gl.enableVertexAttribArray(this.positionAttribute)
+            gl.vertexAttribPointer(this.positionAttribute, 2, gl.FLOAT, false, 0, 0)
+
+            // 重新设置blur程序的uniform
+            gl.uniform4f(uniforms.quad!, 0, 0, 1, 1)
+            gl.uniform1f(uniforms.count!, blur)
+            gl.uniform1i(uniforms.increaseMax!, blur > 32 ? 1 : 0)
+            gl.uniform1i(uniforms.texture!, 0)
+
             // 第一步：水平模糊
             gl.bindFramebuffer(gl.FRAMEBUFFER, horizFramebuffer)
             gl.uniform2f(uniforms.blurDelta!, 1.0 / width, 0.0)
 
             gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, initialTexture)
+            gl.bindTexture(gl.TEXTURE_2D, filteredTexture)
             gl.drawArrays(gl.TRIANGLES, 0, 6)
 
             // 第二步：垂直模糊（直接渲染到画布）
@@ -243,6 +323,8 @@ class WebGLContextManager {
             if (initialTexture) gl.deleteTexture(initialTexture)
             if (horizTexture) gl.deleteTexture(horizTexture)
             if (horizFramebuffer) gl.deleteFramebuffer(horizFramebuffer)
+            if (filterFramebuffer) gl.deleteFramebuffer(filterFramebuffer)
+            if (filteredTexture) gl.deleteTexture(filteredTexture)
         }
     }
 
@@ -250,6 +332,7 @@ class WebGLContextManager {
     destroy(): void {
         if (this.gl) {
             if (this.program) this.gl.deleteProgram(this.program)
+            if (this.filterProgram) this.gl.deleteProgram(this.filterProgram)
             if (this.vertexBuffer) this.gl.deleteBuffer(this.vertexBuffer)
 
             // 强制丢失上下文
@@ -262,17 +345,20 @@ class WebGLContextManager {
         this.canvas = null
         this.gl = null
         this.program = null
+        this.filterProgram = null
         this.vertexBuffer = null
         this.uniforms = null
+        this.filterUniforms = null
         this.positionAttribute = -1
+        this.filterPositionAttribute = -1
 
         WebGLContextManager.instance = null
     }
 }
 
-export async function generateShadowWithWebGL(blur: number, shapeCanvas: HTMLCanvasElement): Promise<ImageBitmap> {
+export async function generateShadowWithWebGL(blur: number, shapeCanvas: HTMLCanvasElement, colorFilter?: [number, number, number, number]): Promise<ImageBitmap> {
     const manager = WebGLContextManager.getInstance()
-    return manager.generateShadow(blur, shapeCanvas)
+    return manager.generateShadow(blur, shapeCanvas, colorFilter)
 }
 
 // 可选：提供清理函数用于释放WebGL资源

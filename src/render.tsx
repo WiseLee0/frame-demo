@@ -158,7 +158,7 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
                 }
                 // 创建ImageBitmap
 
-                const imageBitMap = await generateShadowWithWebGL(blurRadius, shapeCanvas)
+                const imageBitMap = await generateShadowWithWebGL(blurRadius, shapeCanvas, [1, 0, 1, 1])
 
                 shadowDataList.push({
                     image: imageBitMap,
