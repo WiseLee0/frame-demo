@@ -110,13 +110,7 @@ type EffectItem = {
 
 
 const ShadowWrapper = React.memo(({ element, children }: { element: any; children: React.ReactNode }) => {
-    const [shadowData, setShadowData] = useState<{
-        image: any,
-        offsetX: number,
-        offsetY: number,
-        width: number,
-        height: number
-    }[]>([]);
+    const [shadowData, setShadowData] = useState<any[]>([]);
     const shadows = (element?.effects as EffectItem[])?.filter(item =>
         (item.type === 'DROP_SHADOW' || item.type === 'INNER_SHADOW') && item.visible
     ) || [];
@@ -130,11 +124,12 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
         }
 
         const shadowDataList: {
-            image: any,
-            offsetX: number,
-            offsetY: number,
-            width: number,
-            height: number
+            image: any;
+            offsetX: number;
+            offsetY: number;
+            width: number;
+            height: number;
+            scale: number;
         }[] = [];
 
         for (const shadow of dropShadows) {
@@ -143,29 +138,62 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
                 const padding = Math.ceil(blurRadius * 2);
                 const canvasWidth = element.width;
                 const canvasHeight = element.height;
-                // 创建形状纹理
+
+                // 归一化目标尺寸（固定512x512）
+                const TARGET_SIZE = 512;
+                // 原始阴影区域大小
+                const shadowAreaWidth = canvasWidth + padding;
+                const shadowAreaHeight = canvasHeight + padding;
+                // 计算缩放比例（保持宽高比，确保阴影区域不超过512x512）
+                const scale = Math.min(
+                    TARGET_SIZE / shadowAreaWidth,
+                    TARGET_SIZE / shadowAreaHeight
+                );
+
+                // 关键：计算形状左上角在原始坐标空间中的位置（相对于阴影图片的左上角）
+                const xShapeOriginal = (TARGET_SIZE / (2 * scale)) - canvasWidth / 2;
+                const yShapeOriginal = (TARGET_SIZE / (2 * scale)) - canvasHeight / 2;
+
+                // 计算补偿后的偏移量（抵消居中绘制的影响）
+                // 公式：offsetX = 阴影偏移x - 形状左上角相对于阴影图片的位置
+                const offsetX = shadow.offset.x - xShapeOriginal;
+                const offsetY = shadow.offset.y - yShapeOriginal;
+
+                // 创建归一化画布
                 const shapeCanvas = document.createElement('canvas');
-                shapeCanvas.width = canvasWidth + padding;
-                shapeCanvas.height = canvasHeight + padding;
+                shapeCanvas.width = TARGET_SIZE;
+                shapeCanvas.height = TARGET_SIZE;
                 const shapeCtx = shapeCanvas.getContext('2d')!;
+                shapeCtx.clearRect(0, 0, TARGET_SIZE, TARGET_SIZE);
 
-                shapeCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+                // 居中绘制形状（归一化画布）
+                shapeCtx.save();
+                // 1. 平移原点到画布中心
+                shapeCtx.translate(TARGET_SIZE / 2, TARGET_SIZE / 2);
+                // 2. 缩放到归一化比例
+                shapeCtx.scale(scale, scale);
+                // 3. 平移回元素左上角
+                shapeCtx.translate(-canvasWidth / 2, -canvasHeight / 2);
+
+                // 绘制形状（原始尺寸，会被缩放）
                 shapeCtx.fillStyle = `rgba(${shadow.color.r * 255}, ${shadow.color.g * 255}, ${shadow.color.b * 255}, ${shadow.color.a})`;
-
                 if (element.type === 'shape_square') {
-                    shapeCtx.translate(padding / 2, padding / 2);
-                    shapeCtx.fillRect(0, 0, element.width, element.height);
+                    shapeCtx.fillRect(0, 0, canvasWidth, canvasHeight); // 原始尺寸的矩形
                 }
-                // 创建ImageBitmap
+                shapeCtx.restore();
 
-                const imageBitMap = await generateShadowWithWebGL(blurRadius, shapeCanvas, [1, 0, 1, 1])
+                // 计算归一化后的模糊半径
+                const normalizedBlur = blurRadius * scale;
+                // 调用WebGL模糊函数
+                const imageBitMap = await generateShadowWithWebGL(normalizedBlur, shapeCanvas, [1, 0, 1, 1]);
 
                 shadowDataList.push({
                     image: imageBitMap,
-                    offsetX: -blurRadius + shadow.offset.x,
-                    offsetY: -blurRadius + shadow.offset.y,
-                    width: canvasWidth + blurRadius * 2,
-                    height: canvasHeight + blurRadius * 2
+                    offsetX: offsetX,
+                    offsetY: offsetY,
+                    width: TARGET_SIZE,
+                    height: TARGET_SIZE,
+                    scale: scale
                 });
 
             } catch (error) {
@@ -175,7 +203,6 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
 
         setShadowData(shadowDataList);
     };
-
 
     useEffect(() => {
         generateShadowImagesWithWebGL();
@@ -197,6 +224,8 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
                     width={shadow.width}
                     height={shadow.height}
                     listening={false}
+                    scaleX={1 / shadow.scale}
+                    scaleY={1 / shadow.scale}
                 />
             ))}
 
