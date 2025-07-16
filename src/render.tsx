@@ -1,7 +1,7 @@
 import { Group, Rect, Text, Image, Ellipse } from "react-konva";
 import { getProjectState, useProjectState } from "./projectState";
 import { useSelectionBoxState } from "./selection-box";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import imageURL from './assets/image.jpeg?url'
 import React from "react";
 import { generateShadowWithWebGL } from "./shadow";
@@ -180,22 +180,42 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
                 if (element.type === 'shape_square') {
                     shapeCtx.fillRect(0, 0, canvasWidth, canvasHeight); // 原始尺寸的矩形
                 }
-                shapeCtx.restore();
 
                 // 计算归一化后的模糊半径
                 const normalizedBlur = blurRadius * scale;
                 // 调用WebGL模糊函数
                 const imageBitMap = await generateShadowWithWebGL(normalizedBlur, shapeCanvas, [1, 0, 1, 1]);
-
-                shadowDataList.push({
-                    image: imageBitMap,
-                    offsetX: offsetX,
-                    offsetY: offsetY,
-                    width: TARGET_SIZE,
-                    height: TARGET_SIZE,
-                    scale: scale
-                });
-
+                if (!shadow.showShadowBehindNode) {
+                    // 清空画布
+                    shapeCtx.clearRect(-padding, -padding, TARGET_SIZE / scale + padding, TARGET_SIZE / scale + padding)
+                    // 绘制遮照区域
+                    shapeCtx.fillStyle = 'black';
+                    const dx = -shadow.offset.x;
+                    const dy = -shadow.offset.y;
+                    const dw = element.width;
+                    const dh = element.height;
+                    shapeCtx.fillRect(dx, dy, dw, dh);
+                    // 只显示新图形不与现有内容重叠的部分
+                    shapeCtx.globalCompositeOperation = 'source-out';
+                    shapeCtx.drawImage(imageBitMap, -xShapeOriginal, -yShapeOriginal, TARGET_SIZE / scale, TARGET_SIZE / scale)
+                    shadowDataList.push({
+                        image: shapeCanvas,
+                        offsetX: offsetX,
+                        offsetY: offsetY,
+                        width: TARGET_SIZE,
+                        height: TARGET_SIZE,
+                        scale: scale
+                    });
+                } else {
+                    shadowDataList.push({
+                        image: imageBitMap,
+                        offsetX: offsetX,
+                        offsetY: offsetY,
+                        width: TARGET_SIZE,
+                        height: TARGET_SIZE,
+                        scale: scale
+                    });
+                }
             } catch (error) {
                 console.error('Error generating shadow:', error);
             }
@@ -223,9 +243,8 @@ const ShadowWrapper = React.memo(({ element, children }: { element: any; childre
                     y={(children as any)?.props.y + shadow.offsetY}
                     width={shadow.width}
                     height={shadow.height}
+                    scale={{ x: 1 / shadow.scale, y: 1 / shadow.scale }}
                     listening={false}
-                    scaleX={1 / shadow.scale}
-                    scaleY={1 / shadow.scale}
                 />
             ))}
 
